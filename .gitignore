@@ -1,0 +1,4 @@
+node_modules
+dist
+.env
+ssm-v3-project/
