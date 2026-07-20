@@ -54,7 +54,7 @@ export default function App() {
 
   return (
     <div className={dark ? 'dark' : ''}>
-      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-teal-50/40 dark:bg-teal-950/30 text-slate-900 dark:text-slate-100">
         {/* Sidebar overlay (mobile) */}
         {sidebarOpen && (
           <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
@@ -74,7 +74,7 @@ export default function App() {
               <button key={n.id} onClick={() => goTo(n.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   (page === n.id || (page === 'case' && n.id === 'cases'))
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/30'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}>
                 <span className="text-base">{n.icon}</span>
@@ -107,7 +107,7 @@ export default function App() {
             <div className="flex items-center gap-3">
               <button onClick={() => setSidebarOpen(s => !s)} className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">☰</button>
               {page === 'case' && (
-                <button onClick={() => setPage('cases')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 transition-colors">
+                <button onClick={() => setPage('cases')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600 transition-colors">
                   ← 案件列表
                 </button>
               )}

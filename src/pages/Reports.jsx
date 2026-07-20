@@ -233,7 +233,7 @@ export default function Reports({ currentUser, onNavigate }) {
             <div className="flex gap-1 flex-wrap">
               {['全部', ...agents.map(a => a.display_name)].map(name => (
                 <button key={name} onClick={() => setAgentFilter(name)}
-                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${agentFilter === name ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${agentFilter === name ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
                   {name}
                 </button>
               ))}
@@ -244,28 +244,28 @@ export default function Reports({ currentUser, onNavigate }) {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
             <div className="flex gap-2">
               <button onClick={() => setFilterMode('month')}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'month' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'month' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 按月份
               </button>
               <button onClick={() => setFilterMode('range')}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'range' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'range' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 日期范围
               </button>
             </div>
             {filterMode === 'month' ? (
               <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-slate-500">从</span>
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-slate-500">至</span>
                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
                 </div>
                 {(dateFrom || dateTo) && (
                   <button onClick={() => { setDateFrom(''); setDateTo('') }}
@@ -276,7 +276,7 @@ export default function Reports({ currentUser, onNavigate }) {
               </div>
             )}
             <p className="text-xs text-slate-400">
-              找到 <span className="font-bold text-blue-600">{monthlyBanks.length}</span> 笔交接记录
+              找到 <span className="font-bold text-teal-600">{monthlyBanks.length}</span> 笔交接记录
             </p>
           </div>
         )}
@@ -288,7 +288,7 @@ export default function Reports({ currentUser, onNavigate }) {
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              ['总案件', agentReport.reduce((s, r) => s + r.totalCases, 0), 'bg-blue-50 border-blue-100 text-blue-700'],
+              ['总案件', agentReport.reduce((s, r) => s + r.totalCases, 0), 'bg-teal-50 border-teal-100 text-teal-700'],
               ['已完成户口', agentReport.reduce((s, r) => s + r.completedBanks, 0), 'bg-green-50 border-green-100 text-green-700'],
               ['总收费', 'RM ' + agentReport.reduce((s, r) => s + r.totalCommission, 0).toFixed(2), 'bg-purple-50 border-purple-100 text-purple-700'],
               ['总净利润', 'RM ' + agentReport.reduce((s, r) => s + r.netProfit, 0).toFixed(2), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
@@ -395,7 +395,7 @@ export default function Reports({ currentUser, onNavigate }) {
                       <td className="px-4 py-3">
                         {b.cas && (
                           <button onClick={() => onNavigate('case', b.cas.id)}
-                            className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium whitespace-nowrap">
+                            className="px-3 py-1.5 text-xs rounded-lg bg-teal-600 text-white hover:bg-teal-700 font-medium whitespace-nowrap">
                             处理 →
                           </button>
                         )}
@@ -442,7 +442,7 @@ export default function Reports({ currentUser, onNavigate }) {
                       {c.issues.length} 项缺失
                     </span>
                     <button onClick={() => onNavigate('case', c.id)}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium">
+                      className="px-3 py-1.5 text-xs rounded-lg bg-teal-600 text-white hover:bg-teal-700 font-medium">
                       去填写 →
                     </button>
                   </div>
@@ -472,7 +472,7 @@ export default function Reports({ currentUser, onNavigate }) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              ['交接总数', monthlyBanks.length, 'bg-blue-50 border-blue-100 text-blue-700'],
+              ['交接总数', monthlyBanks.length, 'bg-teal-50 border-teal-100 text-teal-700'],
               ['总收费', 'RM ' + monthlyBanks.reduce((s, b) => s + (Number(b.commission) || 0), 0).toFixed(2), 'bg-purple-50 border-purple-100 text-purple-700'],
               ['总成本', 'RM ' + monthlyBanks.reduce((s, b) => s + b.totalFees, 0).toFixed(2), 'bg-red-50 border-red-100 text-red-600'],
               ['净利润', 'RM ' + monthlyBanks.reduce((s, b) => s + b.netCommission, 0).toFixed(2), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
@@ -513,7 +513,7 @@ export default function Reports({ currentUser, onNavigate }) {
                       <td className="px-3 py-3 text-slate-600 dark:text-slate-300 text-xs">{b.commission ? 'RM ' + b.commission : '—'}</td>
                       <td className="px-3 py-3 text-xs font-bold"><span className={b.netCommission >= 0 ? 'text-emerald-600' : 'text-red-600'}>RM {b.netCommission.toFixed(2)}</span></td>
                       <td className="px-3 py-3">
-                        {b.cas && <button onClick={() => onNavigate('case', b.cas.id)} className="px-2 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100">查看</button>}
+                        {b.cas && <button onClick={() => onNavigate('case', b.cas.id)} className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">查看</button>}
                       </td>
                     </tr>
                   ))}

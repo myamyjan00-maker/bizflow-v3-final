@@ -74,7 +74,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
 
       {/* Top stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard icon="📁" label="进行中案件" value={pendingCases.length} color="bg-blue-50 border-blue-100" onClick={() => onNavigate('cases')} />
+        <StatCard icon="📁" label="进行中案件" value={pendingCases.length} color="bg-teal-50 border-teal-100" onClick={() => onNavigate('cases')} />
         <StatCard icon="✅" label="今日完成" value={completedToday.length} color="bg-green-50 border-green-100" onClick={() => onNavigate('cases', { status: 'Completed' })} />
         <StatCard icon="🚀" label="Ready 待交接" value={readyForHandover.length} color="bg-lime-50 border-lime-100" onClick={() => onNavigate('cases', { status: 'Ready For Handover' })} />
         <StatCard icon="⚠️" label="需要关注" value={urgentCases.length} color="bg-amber-50 border-amber-100" />
@@ -96,7 +96,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
                   <span className="text-base w-6 flex-shrink-0">{CASE_STATUS_ICONS[stage]}</span>
                   <span className="text-xs text-slate-600 dark:text-slate-400 w-44 flex-shrink-0 truncate">{stage}</span>
                   <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                    <div className="h-1.5 rounded-full bg-teal-500 transition-all" style={{ width: `${pct}%` }} />
                   </div>
                   <span className={`text-xs font-bold w-6 text-right ${count > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300'}`}>{count}</span>
                 </button>
@@ -112,7 +112,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">💰 公司账户</h3>
-                <button onClick={() => onNavigate('finance')} className="text-xs text-blue-500 hover:text-blue-700">查看详情 →</button>
+                <button onClick={() => onNavigate('finance')} className="text-xs text-teal-500 hover:text-teal-700">查看详情 →</button>
               </div>
               {accounts.map(a => (
                 <div key={a.id} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
@@ -125,7 +125,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
               <div className="pt-2 mt-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-400">总余额</span>
-                  <span className="text-sm font-black text-blue-600">RM {totalBalance.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm font-black text-teal-600">RM {totalBalance.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📋 最新案件</h3>
-          <button onClick={() => onNavigate('cases')} className="text-xs text-blue-500 hover:text-blue-700">查看全部 →</button>
+          <button onClick={() => onNavigate('cases')} className="text-xs text-teal-500 hover:text-teal-700">查看全部 →</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -204,7 +204,7 @@ export default function Dashboard({ currentUser, onNavigate }) {
                   <td className="px-4 py-3"><CaseBadge status={c.status} blocked={c.is_blocked} /></td>
                   <td className="px-4 py-3">
                     <button onClick={() => onNavigate('case', c.id)}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium whitespace-nowrap">
+                      className="px-3 py-1.5 text-xs rounded-lg bg-teal-600 text-white hover:bg-teal-700 font-medium whitespace-nowrap">
                       处理 →
                     </button>
                   </td>

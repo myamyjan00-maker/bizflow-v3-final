@@ -148,7 +148,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="text-center">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
         <p className="text-sm text-slate-500">加载案件资料...</p>
       </div>
     </div>
@@ -182,10 +182,10 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     <div className="space-y-4">
       {/* Back + header */}
       <div>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-3 transition-colors">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600 mb-3 transition-colors">
           ← 返回案件列表
         </button>
-        <div className="bg-gradient-to-r from-blue-700 to-blue-600 rounded-2xl p-5 text-white">
+        <div className="bg-gradient-to-r from-teal-700 to-teal-600 rounded-2xl p-5 text-white">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -193,7 +193,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                 <CaseBadge status={cas.status} blocked={cas.is_blocked} terminationType={cas.termination_type} />
               </div>
               <h1 className="text-xl font-black truncate">{ssm?.ssm_name || owner?.name || '未命名案件'}</h1>
-              <p className="text-blue-200 text-sm mt-1">
+              <p className="text-teal-200 text-sm mt-1">
                 {owner?.name} {owner?.ic && `· ${owner.ic}`} {cas.users?.display_name && `· ${cas.users.display_name}`}
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                 <span className={`inline-block ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${DEPOSIT_RECOVERY_STATUSES[cas.deposit_recovery_status]?.color}`}>
                   {DEPOSIT_RECOVERY_STATUSES[cas.deposit_recovery_status]?.label}
                 </span>
-                {cas.deposit_recovery_target && <span className="text-blue-200 text-xs ml-2">追讨对象：{DEPOSIT_RECOVERY_TARGETS[cas.deposit_recovery_target]}</span>}
+                {cas.deposit_recovery_target && <span className="text-teal-200 text-xs ml-2">追讨对象：{DEPOSIT_RECOVERY_TARGETS[cas.deposit_recovery_target]}</span>}
               </div>
               {currentUser.role !== 'viewer' && (
                 <button onClick={() => setShowRecoveryModal(true)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-medium">更新追讨结果</button>
@@ -268,23 +268,23 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/20">
             <div className="text-center">
               <p className="text-xl font-black">{banks.length}</p>
-              <p className="text-xs text-blue-200">银行户口</p>
+              <p className="text-xs text-teal-200">银行户口</p>
             </div>
             <div className="text-center">
               <p className="text-xl font-black">{files.length}</p>
-              <p className="text-xs text-blue-200">文件</p>
+              <p className="text-xs text-teal-200">文件</p>
             </div>
             <div className="text-center">
               <p className={`text-xl font-black ${netProfit >= 0 ? 'text-green-300' : 'text-red-300'}`}>
                 RM {Math.abs(netProfit).toFixed(0)}
               </p>
-              <p className="text-xs text-blue-200">净利润</p>
+              <p className="text-xs text-teal-200">净利润</p>
             </div>
             <div className="text-center">
               <p className={`text-xl font-black ${outstandingDeposit > 0 ? 'text-yellow-300' : 'text-green-300'}`}>
                 RM {outstandingDeposit.toFixed(0)}
               </p>
-              <p className="text-xs text-blue-200">待回 Deposit</p>
+              <p className="text-xs text-teal-200">待回 Deposit</p>
             </div>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`px-5 py-3.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                tab === t.id ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                tab === t.id ? 'border-teal-600 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
               }`}>{t.label}</button>
           ))}
         </div>
@@ -310,7 +310,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                 {timeline.map((item, i) => (
                   <div key={item.id} className="flex gap-4 pb-6 relative">
                     <div className="flex flex-col items-center">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 border-2 border-blue-400 flex items-center justify-center text-xs font-bold text-blue-700 dark:text-blue-300 flex-shrink-0 z-10">
+                      <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 border-2 border-teal-400 flex items-center justify-center text-xs font-bold text-teal-700 dark:text-teal-300 flex-shrink-0 z-10">
                         {i + 1}
                       </div>
                       {i < timeline.length - 1 && <div className="w-0.5 flex-1 bg-slate-200 dark:bg-slate-700 mt-1" />}
@@ -333,10 +333,10 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                     const done = i < currentStatusIndex
                     const current = i === currentStatusIndex
                     return (
-                      <div key={s} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${current ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800' : done ? 'opacity-50' : 'opacity-30'}`}>
+                      <div key={s} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${current ? 'bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800' : done ? 'opacity-50' : 'opacity-30'}`}>
                         <span className="text-base">{done ? '✅' : current ? '🔵' : '⚪'}</span>
-                        <span className={`text-xs font-medium ${current ? 'text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'}`}>{s}</span>
-                        {current && <span className="ml-auto text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">当前</span>}
+                        <span className={`text-xs font-medium ${current ? 'text-teal-700 dark:text-teal-300' : 'text-slate-600 dark:text-slate-400'}`}>{s}</span>
+                        {current && <span className="ml-auto text-[10px] bg-teal-600 text-white px-2 py-0.5 rounded-full">当前</span>}
                       </div>
                     )
                   })}
@@ -388,7 +388,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
             <div className="space-y-4">
               {currentUser.role !== 'viewer' && (
                 <button onClick={() => { setEditBank(null); setShowAddBank(true) }}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-colors">
                   + 新增银行户口
                 </button>
               )}
@@ -408,7 +408,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                       {b.com_id && <span className="text-xs font-mono bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{b.com_id}</span>}
                       {currentUser.role !== 'viewer' && (
                         <button onClick={() => { setEditBank(b); setShowAddBank(true) }}
-                          className="px-2 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100">编辑</button>
+                          className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">编辑</button>
                       )}
                     </div>
                   </div>
@@ -422,7 +422,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                     </div>
                     <div>
                       {(b.ob_user_id || b.ob_password) && <>
-                        <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide py-2">🔐 网上银行</p>
+                        <p className="text-[10px] font-bold text-teal-500 uppercase tracking-wide py-2">🔐 网上银行</p>
                         <InfoRow label="用户名" value={b.ob_user_id} />
                         <InfoRow label="密码" value={b.ob_password} secret />
                         {b.bank_name === 'RHB' && <><InfoRow label="Corporate ID" value={b.corp_id} /><InfoRow label="Secure Plus" value={b.secure_plus_serial} /></>}
@@ -478,7 +478,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
 
               {currentUser.role !== 'viewer' && (
                 <button onClick={() => { setEditDeposit(null); setShowAddDeposit(true) }}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-colors">
                   + 新增 Deposit 记录
                 </button>
               )}
@@ -498,7 +498,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                       </div>
                       {currentUser.role !== 'viewer' && (
                         <button onClick={() => { setEditDeposit(d); setShowAddDeposit(true) }}
-                          className="px-2 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100">编辑</button>
+                          className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">编辑</button>
                       )}
                     </div>
                     <div className="px-5 py-3">
@@ -551,7 +551,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
 
               {currentUser.role !== 'viewer' && (
                 <button onClick={() => setShowAddCost(true)}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-colors">
                   + 新增费用
                 </button>
               )}
@@ -656,18 +656,18 @@ function StatusChangeModal({ cas, onClose, onSave }) {
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">新状态</label>
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
             {CASE_STATUSES.map(s => <option key={s} value={s}>{CASE_STATUS_ICONS[s]} {s}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">备注（可选）</label>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="说明更新原因..."
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" />
         </div>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={() => onSave(status, note)} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white">确认更新</button>
+          <button onClick={() => onSave(status, note)} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">确认更新</button>
         </div>
       </div>
     </Modal>
@@ -746,12 +746,12 @@ function UnterminateModal({ onClose, onSave }) {
         <Field label="撤销原因 *">
           <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
             placeholder="例如：判断有误，客户其实没有放弃..."
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" />
         </Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={() => reason && onSave(reason)} disabled={!reason}
-            className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">确认撤销</button>
+            className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">确认撤销</button>
         </div>
       </div>
     </Modal>
@@ -784,7 +784,7 @@ function RecoveryModal({ cas, outstandingDeposit, onClose, onSave }) {
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={() => onSave(status, target, note)}
-            className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white">保存</button>
+            className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">保存</button>
         </div>
       </div>
     </Modal>
@@ -800,11 +800,11 @@ function AddNoteModal({ onClose, onSave }) {
         <Field label="标题 *"><Inp value={action} onChange={setAction} placeholder="e.g. 客户已确认" /></Field>
         <Field label="详情" span2>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="详细说明..."
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" />
         </Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={() => action && onSave(action, note)} disabled={!action} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">添加</button>
+          <button onClick={() => action && onSave(action, note)} disabled={!action} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">添加</button>
         </div>
       </div>
     </Modal>
@@ -858,7 +858,7 @@ function EditProfileModal({ cas, onClose, onSave }) {
         )}
         <div className="flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
+          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
         </div>
       </div>
     </Modal>
@@ -907,7 +907,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         <div className="col-span-2 bg-slate-50 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-600">🔒 安全问题</p>
-            {form.security_qa.length < 5 && <button onClick={addQa} className="text-xs text-blue-600 hover:text-blue-800">+ 新增</button>}
+            {form.security_qa.length < 5 && <button onClick={addQa} className="text-xs text-teal-600 hover:text-teal-800">+ 新增</button>}
           </div>
           {form.security_qa.map((qa, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 items-end">
@@ -934,7 +934,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         </div>
         <div className="col-span-2 flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
+          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
         </div>
       </div>
     </Modal>
@@ -967,7 +967,7 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
       <div className="grid grid-cols-2 gap-3">
         <Field label="转进哪个银行户口 *" span2>
           <select value={form.bank_account_id} onChange={e => set('bank_account_id', e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
             <option value="">-- 选择银行户口 --</option>
             {banks.map(b => <option key={b.id} value={b.id}>{b.bank_name} — {b.account_no || '未填账号'}</option>)}
           </select>
@@ -997,7 +997,7 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
         <Field label="备注" span2><Inp value={form.notes} onChange={v => set('notes', v)} /></Field>
         <div className="col-span-2 flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
+          <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
         </div>
       </div>
     </Modal>
@@ -1028,7 +1028,7 @@ function CostFormModal({ caseId, currentUser, onClose, onSave }) {
         <Field label="备注"><Inp value={note} onChange={setNote} placeholder="（可选）" /></Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={handleSave} disabled={loading || !amount} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
+          <button onClick={handleSave} disabled={loading || !amount} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
         </div>
       </div>
     </Modal>
@@ -1084,10 +1084,10 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
               <div className="flex items-center gap-2">
                 <span className="text-sm">{cat === 'IC (Owner)' ? '🪪' : cat === 'SSM Document' ? '🏢' : cat === 'Bank Document' ? '🏦' : cat === 'ATM Card Photo' ? '💳' : '📄'}</span>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{cat}</span>
-                {catFiles.length > 0 && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">{catFiles.length}</span>}
+                {catFiles.length > 0 && <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">{catFiles.length}</span>}
               </div>
               {currentUser.role !== 'viewer' && (
-                <label className={`cursor-pointer px-3 py-1 text-xs rounded-lg font-medium text-white ${uploading ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                <label className={`cursor-pointer px-3 py-1 text-xs rounded-lg font-medium text-white ${uploading ? 'bg-slate-400' : 'bg-teal-600 hover:bg-teal-700'}`}>
                   {uploading ? '...' : '+ 上传'}
                   <input type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" disabled={uploading} onChange={e => handleUpload(cat, e)} />
                 </label>

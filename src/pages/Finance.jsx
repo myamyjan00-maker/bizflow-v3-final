@@ -49,7 +49,7 @@ export default function Finance({ currentUser, toast }) {
   const txnTypeLabels = {
     deposit_out: { label: 'Deposit 出款', color: 'text-red-600', sign: '-' },
     deposit_return: { label: 'Deposit 回款', color: 'text-green-600', sign: '+' },
-    adjustment_in: { label: '调整（入）', color: 'text-blue-600', sign: '+' },
+    adjustment_in: { label: '调整（入）', color: 'text-teal-600', sign: '+' },
     adjustment_out: { label: '调整（出）', color: 'text-orange-600', sign: '-' },
     charge: { label: '费用', color: 'text-red-500', sign: '-' },
   }
@@ -67,17 +67,17 @@ export default function Finance({ currentUser, toast }) {
       {/* Account cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {accounts.map(a => (
-          <div key={a.id} className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-5 text-white">
+          <div key={a.id} className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="text-xs text-blue-200 font-medium">{a.name}</p>
+                <p className="text-xs text-teal-200 font-medium">{a.name}</p>
                 <p className="text-3xl font-black mt-1">
                   RM {Number(a.balance).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <span className="text-3xl">🏦</span>
             </div>
-            <p className="text-xs text-blue-200">上次更新：{fmt(a.updated_at)}</p>
+            <p className="text-xs text-teal-200">上次更新：{fmt(a.updated_at)}</p>
             {currentUser.role !== 'viewer' && (
               <button onClick={() => setShowAdjust(a)}
                 className="mt-3 w-full py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-medium transition-colors">
@@ -187,7 +187,7 @@ function AdjustModal({ account, onClose, onSave }) {
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={() => onSave(account.id, balance, note)} disabled={!balance}
-            className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">确认更新</button>
+            className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">确认更新</button>
         </div>
       </div>
     </Modal>

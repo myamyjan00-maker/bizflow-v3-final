@@ -48,7 +48,7 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-8">
@@ -57,9 +57,9 @@ export default function Login({ onLogin }) {
           </div>
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="text-3xl font-black text-white tracking-tight">
-              Biz<span className="text-blue-400">Flow</span>
+              Biz<span className="text-teal-400">Flow</span>
             </span>
-            <span className="text-xs font-bold text-white bg-blue-600 px-2 py-0.5 rounded">MY</span>
+            <span className="text-xs font-bold text-white bg-teal-600 px-2 py-0.5 rounded">MY</span>
           </div>
           <p className="text-sm text-slate-400 tracking-widest uppercase">Start Smart. Grow Strong.</p>
         </div>
@@ -76,7 +76,7 @@ export default function Login({ onLogin }) {
               <input value={username} onChange={e => setUsername(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
                 placeholder="输入用户名"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">密码</label>
@@ -85,13 +85,13 @@ export default function Login({ onLogin }) {
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   placeholder="输入密码"
-                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
                 <button onClick={() => setShowPass(s => !s)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{showPass ? '🙈' : '👁'}</button>
               </div>
             </div>
             <button onClick={handleLogin} disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50 transition-colors">
+              className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm disabled:opacity-50 transition-colors">
               {loading ? '登入中...' : '登入'}
             </button>
           </div>

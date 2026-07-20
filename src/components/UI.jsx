@@ -79,14 +79,14 @@ export function Inp({ value, onChange, placeholder, type = 'text', disabled, cla
   return (
     <input type={type} value={value || ''} onChange={e => onChange(e.target.value)}
       placeholder={placeholder} disabled={disabled}
-      className={`w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${className}`} />
+      className={`w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 ${className}`} />
   )
 }
 
 export function Sel({ value, onChange, options, disabled }) {
   return (
     <select value={value || ''} onChange={e => onChange(e.target.value)} disabled={disabled}
-      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50">
       <option value="">-- 请选择 --</option>
       {options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
     </select>
@@ -97,7 +97,7 @@ export function Textarea({ value, onChange, placeholder, rows = 3 }) {
   return (
     <textarea value={value || ''} onChange={e => onChange(e.target.value)}
       placeholder={placeholder} rows={rows}
-      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" />
   )
 }
 
@@ -108,7 +108,7 @@ export function Secret({ value }) {
   return (
     <span className="flex items-center gap-1">
       <span className="font-mono text-sm">{show ? value : '••••••••'}</span>
-      <button onClick={() => setShow(s => !s)} className="text-slate-400 hover:text-blue-500 text-xs">{show ? '🙈' : '👁'}</button>
+      <button onClick={() => setShow(s => !s)} className="text-slate-400 hover:text-teal-500 text-xs">{show ? '🙈' : '👁'}</button>
     </span>
   )
 }
@@ -122,7 +122,7 @@ export function InfoRow({ label, value, secret }) {
       <span className="text-xs text-slate-400 flex-shrink-0 w-28">{label}</span>
       <span className="text-xs text-right flex-1 break-all text-slate-700 dark:text-slate-300">
         {secret ? (show ? value : <span className="font-mono text-slate-400">••••••••</span>) : value}
-        {secret && <button onClick={() => setShow(s => !s)} className="ml-1 text-slate-300 hover:text-blue-500">{show ? '🙈' : '👁'}</button>}
+        {secret && <button onClick={() => setShow(s => !s)} className="ml-1 text-slate-300 hover:text-teal-500">{show ? '🙈' : '👁'}</button>}
       </span>
     </div>
   )
@@ -148,7 +148,7 @@ export function Pagination({ page, totalPages, onChange, totalItems, pageSize })
           <span key={'d' + i} className="px-2 text-xs text-slate-400">…</span>
         ) : (
           <button key={p} onClick={() => onChange(p)}
-            className={`px-3 py-1.5 text-xs rounded-lg font-medium ${p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{p}</button>
+            className={`px-3 py-1.5 text-xs rounded-lg font-medium ${p === page ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{p}</button>
         ))}
         <button onClick={() => onChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}
           className="px-3 py-1.5 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40">→</button>

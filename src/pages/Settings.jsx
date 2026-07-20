@@ -53,7 +53,7 @@ export default function Settings({ currentUser, toast }) {
           <p className="text-xs text-slate-500">用户管理 · 角色权限</p>
         </div>
         <button onClick={() => { setForm({ username: '', display_name: '', role: 'agent', status: 'active' }); setModal('add') }}
-          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
+          className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold transition-colors">
           + 新增用户
         </button>
       </div>
@@ -75,7 +75,7 @@ export default function Settings({ currentUser, toast }) {
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     u.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
-                    u.role === 'admin' ? 'bg-blue-100 text-blue-700' :
+                    u.role === 'admin' ? 'bg-teal-100 text-teal-700' :
                     u.role === 'agent' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
                   }`}>{ROLES[u.role]}</span>
                 </td>
@@ -91,7 +91,7 @@ export default function Settings({ currentUser, toast }) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    <button onClick={() => { setForm(u); setModal(u) }} className="px-2 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100">编辑</button>
+                    <button onClick={() => { setForm(u); setModal(u) }} className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">编辑</button>
                     {u.id !== currentUser.id && (
                       <button onClick={() => toggleStatus(u)} className={`px-2 py-1 text-xs rounded-lg ${u.status === 'active' ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
                         {u.status === 'active' ? '停用' : '启用'}
@@ -121,7 +121,7 @@ export default function Settings({ currentUser, toast }) {
           </div>
           <div className="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
             <button onClick={() => setModal(null)} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-            <button onClick={saveUser} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white">保存</button>
+            <button onClick={saveUser} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">保存</button>
           </div>
         </Modal>
       )}
@@ -141,7 +141,7 @@ where username = '${afterCreate}';`}</pre>
             </ol>
             <p className="text-xs text-slate-400">完成后回到这个页面刷新，「登入账号」那一栏会显示 ✅ 已连结。</p>
             <div className="flex justify-end pt-2">
-              <button onClick={() => setAfterCreate(null)} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white">知道了</button>
+              <button onClick={() => setAfterCreate(null)} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">知道了</button>
             </div>
           </div>
         </Modal>

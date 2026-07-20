@@ -60,7 +60,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
         </div>
         {currentUser.role !== 'viewer' && (
           <button onClick={() => setShowNewCase(true)}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
+            className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold transition-colors">
             + 新建案件
           </button>
         )}
@@ -69,12 +69,12 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
       {/* Status filter pills */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setStatusFilter('全部')}
-          className={`px-3 py-1.5 text-xs rounded-xl font-medium transition-colors ${statusFilter === '全部' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
+          className={`px-3 py-1.5 text-xs rounded-xl font-medium transition-colors ${statusFilter === '全部' ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
           全部 ({cases.length})
         </button>
         {CASE_STATUSES.map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 text-xs rounded-xl font-medium transition-colors ${statusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
+            className={`px-3 py-1.5 text-xs rounded-xl font-medium transition-colors ${statusFilter === s ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>
             {CASE_STATUS_ICONS[s]} {s.split(' ').slice(-1)[0]} ({statusCounts[s] || 0})
           </button>
         ))}
@@ -84,7 +84,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
       <div className="flex gap-3 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="搜索 案件编号 / 公司名 / Owner / IC / 电话..."
-          className="flex-1 min-w-[200px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 min-w-[200px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         {currentUser.role !== 'agent' && (
           <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)}
             className="px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -109,7 +109,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
               {paged.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   onClick={() => onNavigate('case', c.id)}>
-                  <td className="px-4 py-3 font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">{c.case_no}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-teal-600 dark:text-teal-400 font-bold">{c.case_no}</td>
                   <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100 max-w-[160px] truncate">{c.ssm?.ssm_name || <span className="text-slate-400 italic">未填</span>}</td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300 max-w-[120px] truncate">{c.owners?.name || '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.owners?.ic || '—'}</td>
@@ -118,7 +118,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
                   <td className="px-4 py-3 text-xs text-slate-400">{fmt(c.created_at)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <button onClick={() => onNavigate('case', c.id)}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium whitespace-nowrap">
+                      className="px-3 py-1.5 text-xs rounded-lg bg-teal-600 text-white hover:bg-teal-700 font-medium whitespace-nowrap">
                       开启 →
                     </button>
                   </td>
@@ -230,7 +230,7 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
             </Field>
             <Field label="备注" span2>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
-                placeholder="案件备注..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                placeholder="案件备注..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" />
             </Field>
           </div>
         )}
@@ -241,12 +241,12 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
               <label className="block text-xs font-medium text-slate-600 mb-1">搜索现有 Owner</label>
               <input value={ownerSearch} onChange={e => setOwnerSearch(e.target.value)}
                 placeholder="输入姓名或 IC 搜索..."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
               {ownerSearch && (
                 <div className="mt-1 border border-slate-200 rounded-xl overflow-hidden">
                   {filteredOwners.length > 0 ? filteredOwners.map(o => (
                     <button key={o.id} onClick={() => { setSelectedOwner(o); setOwnerSearch('') }}
-                      className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0 ${selectedOwner?.id === o.id ? 'bg-blue-50 font-bold' : ''}`}>
+                      className={`w-full text-left px-4 py-2.5 hover:bg-teal-50 text-sm border-b border-slate-100 last:border-0 ${selectedOwner?.id === o.id ? 'bg-teal-50 font-bold' : ''}`}>
                       <span className="font-medium text-slate-800">{o.name}</span>
                       <span className="text-slate-400 text-xs ml-2">{o.ic}</span>
                     </button>
@@ -291,7 +291,7 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
             {step < 3
-              ? <button onClick={() => setStep(s => s + 1)} className="px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white">下一步 →</button>
+              ? <button onClick={() => setStep(s => s + 1)} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">下一步 →</button>
               : <button onClick={handleCreate} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">{loading ? '创建中...' : '✓ 创建案件'}</button>
             }
           </div>
