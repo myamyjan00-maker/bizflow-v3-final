@@ -169,8 +169,10 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     return 0
   }
   const totalDeposit = deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  const totalBankCharges = deposits.reduce((s, d) => s + (Number(d.bank_charge) || 0), 0)
   const totalReturned = deposits.reduce((s, d) => s + getReturnedAmount(d), 0)
-  const outstandingDeposit = totalDeposit - totalReturned
+  // 待回 = 总垫付金额 - 银行手续费(已花掉，不会回来) - 已回金额
+  const outstandingDeposit = totalDeposit - totalBankCharges - totalReturned
 
   const currentStatusIndex = CASE_STATUSES.indexOf(cas.status)
   const nextStatus = CASE_STATUSES[currentStatusIndex + 1]
@@ -486,7 +488,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
               {deposits.length === 0 && <p className="text-slate-400 text-sm text-center py-8">暂无 Deposit 记录</p>}
               {deposits.map(d => {
                 const transferred = (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
-                const outstanding = (Number(d.amount) || 0) - getReturnedAmount(d)
+                const outstanding = transferred - getReturnedAmount(d)
                 return (
                   <div key={d.id} className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
                     <div className="bg-slate-50 dark:bg-slate-800 px-5 py-3 flex items-center justify-between">
@@ -946,7 +948,9 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const transferAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
-  const outstanding = (Number(form.amount) || 0) - (Number(form.returned_amount) || 0)
+  // 待回金额 = 净额(垫付金额 - 银行手续费) - 已回金额，不是拿总垫付金额去减（手续费已经花掉，不会再回来）
+  const netAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
+  const outstanding = netAmount - (Number(form.returned_amount) || 0)
 
   const handleSave = async () => {
     if (!form.amount) { toast('请填写金额', 'error'); return }

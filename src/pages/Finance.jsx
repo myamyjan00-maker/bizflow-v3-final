@@ -44,7 +44,7 @@ export default function Finance({ currentUser, toast }) {
     return 0
   }
   const totalBalance = accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0)
-  const totalOutstanding = deposits.reduce((s, d) => s + ((Number(d.amount) || 0) - getReturnedAmount(d)), 0)
+  const totalOutstanding = deposits.reduce((s, d) => s + ((Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)), 0)
 
   const txnTypeLabels = {
     deposit_out: { label: 'Deposit 出款', color: 'text-red-600', sign: '-' },
@@ -113,7 +113,7 @@ export default function Finance({ currentUser, toast }) {
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {deposits.map(d => {
-              const outstanding = (Number(d.amount) || 0) - getReturnedAmount(d)
+              const outstanding = (Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)
               const days = d.transfer_date ? Math.floor((Date.now() - new Date(d.transfer_date).getTime()) / 86400000) : null
               return (
                 <div key={d.id} className="flex items-center gap-4 px-5 py-3">
