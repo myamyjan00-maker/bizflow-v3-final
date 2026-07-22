@@ -71,6 +71,11 @@ export const BANK_STATUS_COLORS = {
   'Blacklist':    'bg-red-100 text-red-700',
 }
 
+export const PAYMENT_METHODS = {
+  transfer: { label: '转账', icon: '🏦' },
+  cash: { label: '现金', icon: '💵' },
+}
+
 export const COST_CATEGORIES = [
   { key:'ssm_fee',    label:'SSM 注册费',  icon:'📋' },
   { key:'chop',       label:'做 Chop',     icon:'🔖' },

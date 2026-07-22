@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
+import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, PAYMENT_METHODS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
 import { CaseBadge, BankBadge, Modal, Field, Inp, Sel, InfoRow, Secret } from '../components/UI'
 
 const TABS = [
@@ -45,7 +45,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
       supabase.from('cases').select('*, owners(*), ssm(*), users!cases_agent_id_fkey(display_name,id)').eq('id', caseId).single(),
       supabase.from('case_timeline').select('*, users(display_name)').eq('case_id', caseId).order('done_at', { ascending: true }),
       supabase.from('bank_accounts').select('*').eq('ssm_id', caseId).order('created_at'),
-      supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), company_accounts(name)').eq('ssm_id', caseId).order('created_at', { ascending: false }),
+      supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), company_accounts!account_id(name)').eq('ssm_id', caseId).order('created_at', { ascending: false }),
       supabase.from('case_costs').select('*').eq('case_id', caseId).order('created_at', { ascending: false }),
       supabase.from('files').select('*').eq('ssm_id', caseId).order('created_at', { ascending: false }),
       supabase.from('company_accounts').select('*').order('name'),
@@ -58,7 +58,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     }
     let depositData = d || []
     if (c?.ssm_id) {
-      const { data: dd } = await supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), company_accounts(name)').eq('ssm_id', c.ssm_id).order('created_at', { ascending: false })
+      const { data: dd } = await supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), company_accounts!account_id(name)').eq('ssm_id', c.ssm_id).order('created_at', { ascending: false })
       depositData = dd || []
     }
     let fileData = f || []
@@ -627,7 +627,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           }} toast={toast} />
       )}
       {showAddDeposit && (
-        <DepositFormModal initial={editDeposit} ssmId={cas.ssm_id} banks={banks} accounts={accounts} currentUser={currentUser}
+        <DepositFormModal initial={editDeposit} ssmId={cas.ssm_id} caseId={caseId} banks={banks} accounts={accounts} currentUser={currentUser}
           onClose={() => { setShowAddDeposit(false); setEditDeposit(null) }}
           onSave={async () => {
             setShowAddDeposit(false); setEditDeposit(null); loadAll()
@@ -943,8 +943,8 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
   )
 }
 
-function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClose, onSave, toast }) {
-  const [form, setForm] = useState(initial || { bank_account_id: banks[0]?.id || '', account_id: '', amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', returned_amount: 0, return_date: '', status: 'pending', notes: '' })
+function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser, onClose, onSave, toast }) {
+  const [form, setForm] = useState(initial || { bank_account_id: banks[0]?.id || '', account_id: '', payment_method: 'transfer', amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', returned_amount: 0, return_date: '', status: 'pending', notes: '' })
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const transferAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
@@ -956,12 +956,37 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
     if (!form.amount) { toast('请填写金额', 'error'); return }
     setLoading(true)
     const payload = { ...form, ssm_id: ssmId, updated_at: new Date() }
-    if (initial) await supabase.from('deposits').update(payload).eq('id', initial.id)
-    else await supabase.from('deposits').insert({ ...payload, created_by: currentUser.id })
-    // Update account balance if account selected
+
+    let saveError = null
+    if (initial) {
+      const { error } = await supabase.from('deposits').update(payload).eq('id', initial.id)
+      saveError = error
+    } else {
+      const { error } = await supabase.from('deposits').insert({ ...payload, created_by: currentUser.id })
+      saveError = error
+    }
+
+    if (saveError) {
+      toast('保存失败：' + saveError.message, 'error')
+      setLoading(false)
+      return // 保存失败就不要往下扣款，避免钱扣了但记录没存到的对不上账问题
+    }
+
+    // 只有 Deposit 记录真的存成功了，而且是新增（不是编辑）、有选公司账户，才扣款
+    // 扣款同时写入 account_transactions，保持「余额」跟「流水记录」两边对得上
     if (form.account_id && !initial) {
       const acc = accounts.find(a => a.id === form.account_id)
-      if (acc) await supabase.from('company_accounts').update({ balance: (Number(acc.balance) || 0) - (Number(form.amount) || 0), updated_at: new Date() }).eq('id', form.account_id)
+      if (acc) {
+        await supabase.from('company_accounts').update({
+          balance: (Number(acc.balance) || 0) - (Number(form.amount) || 0), updated_at: new Date(),
+        }).eq('id', form.account_id)
+        await supabase.from('account_transactions').insert({
+          account_id: form.account_id, bank_account_id: form.bank_account_id, case_id: caseId,
+          type: 'deposit_out', amount: Number(form.amount) || 0, payment_method: form.payment_method,
+          reference: `Deposit - ${form.transfer_to || ''}`, date: form.transfer_date || new Date(),
+          note: form.notes || '', created_by: currentUser.id,
+        })
+      }
     }
     setLoading(false); onSave()
   }
@@ -978,6 +1003,16 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
         </Field>
         <Field label="从哪个公司账户">
           <Sel value={form.account_id} onChange={v => set('account_id', v)} options={accounts.map(a => ({ value: a.id, label: `${a.name} (RM ${Number(a.balance).toFixed(2)})` }))} />
+        </Field>
+        <Field label="付款方式">
+          <div className="flex gap-2">
+            {Object.entries(PAYMENT_METHODS).map(([k, m]) => (
+              <button key={k} type="button" onClick={() => set('payment_method', k)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.payment_method === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                {m.icon} {m.label}
+              </button>
+            ))}
+          </div>
         </Field>
         <Field label="Deposit 金额 (RM) *"><Inp type="number" value={form.amount} onChange={v => set('amount', v)} /></Field>
         <Field label="谁存的"><Inp value={form.depositor} onChange={v => set('depositor', v)} placeholder="存款人" /></Field>
@@ -1011,13 +1046,14 @@ function DepositFormModal({ initial, ssmId, banks, accounts, currentUser, onClos
 function CostFormModal({ caseId, currentUser, onClose, onSave }) {
   const [category, setCategory] = useState('ssm_fee')
   const [amount, setAmount] = useState(0)
+  const [paymentMethod, setPaymentMethod] = useState('transfer')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSave = async () => {
     if (!amount) return
     setLoading(true)
-    await supabase.from('case_costs').insert({ case_id: caseId, category, amount: Number(amount), note, created_by: currentUser.id })
+    await supabase.from('case_costs').insert({ case_id: caseId, category, amount: Number(amount), payment_method: paymentMethod, note, created_by: currentUser.id })
     const cat = COST_CATEGORIES.find(c => c.key === category)
     setLoading(false); onSave(cat?.label || category, amount, note)
   }
@@ -1029,6 +1065,16 @@ function CostFormModal({ caseId, currentUser, onClose, onSave }) {
           <Sel value={category} onChange={setCategory} options={COST_CATEGORIES.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))} />
         </Field>
         <Field label="金额 (RM) *"><Inp type="number" value={amount} onChange={setAmount} /></Field>
+        <Field label="付款方式">
+          <div className="flex gap-2">
+            {Object.entries(PAYMENT_METHODS).map(([k, m]) => (
+              <button key={k} type="button" onClick={() => setPaymentMethod(k)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                {m.icon} {m.label}
+              </button>
+            ))}
+          </div>
+        </Field>
         <Field label="备注"><Inp value={note} onChange={setNote} placeholder="（可选）" /></Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
