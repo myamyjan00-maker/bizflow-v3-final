@@ -1070,8 +1070,7 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
       return // 保存失败就不要往下扣款，避免钱扣了但记录没存到的对不上账问题
     }
 
-    // 只有 Deposit 记录真的存成功了，而且是新增（不是编辑）、有选公司账户，才扣款
-    // 扣款同时写入 account_transactions，保持「余额」跟「流水记录」两边对得上
+    // 情况一：新增 Deposit，有选公司账户 → 直接扣款
     if (form.account_id && !initial) {
       const acc = accounts.find(a => a.id === form.account_id)
       if (acc) {
@@ -1084,6 +1083,40 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
           reference: `Deposit - ${form.transfer_to || ''}`, date: form.transfer_date || new Date(),
           note: form.notes || '', created_by: currentUser.id,
         })
+      }
+    }
+
+    // 情况二：编辑既有 Deposit，如果换了公司账户或改了金额，财务要跟着同步，不能只改记录不改账
+    // 用「撤销旧扣款 + 套用新扣款」的方式处理，两笔都留下流水记录，方便日后追查（不像之前那样悄悄漏掉）
+    if (initial) {
+      const oldAccountId = initial.account_id || null
+      const oldAmount = Number(initial.amount) || 0
+      const newAccountId = form.account_id || null
+      const newAmount = Number(form.amount) || 0
+      if (oldAccountId !== newAccountId || oldAmount !== newAmount) {
+        if (oldAccountId) {
+          const { data: oldAcc } = await supabase.from('company_accounts').select('balance').eq('id', oldAccountId).single()
+          if (oldAcc) {
+            await supabase.from('company_accounts').update({ balance: Number(oldAcc.balance) + oldAmount, updated_at: new Date() }).eq('id', oldAccountId)
+            await supabase.from('account_transactions').insert({
+              account_id: oldAccountId, bank_account_id: initial.bank_account_id, case_id: caseId,
+              type: 'adjustment_in', amount: oldAmount, payment_method: initial.payment_method,
+              reference: 'Deposit 编辑修正', date: new Date(), note: '编辑 Deposit 时撤销原本的扣款', created_by: currentUser.id,
+            })
+          }
+        }
+        if (newAccountId) {
+          const { data: newAcc } = await supabase.from('company_accounts').select('balance').eq('id', newAccountId).single()
+          if (newAcc) {
+            await supabase.from('company_accounts').update({ balance: Number(newAcc.balance) - newAmount, updated_at: new Date() }).eq('id', newAccountId)
+            await supabase.from('account_transactions').insert({
+              account_id: newAccountId, bank_account_id: form.bank_account_id, case_id: caseId,
+              type: 'deposit_out', amount: newAmount, payment_method: form.payment_method,
+              reference: `Deposit 编辑修正 - ${form.transfer_to || ''}`, date: form.transfer_date || new Date(),
+              note: '编辑 Deposit 后重新套用扣款', created_by: currentUser.id,
+            })
+          }
+        }
       }
     }
     setLoading(false); onSave()
