@@ -967,12 +967,24 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
 
   const handleSave = async () => {
     if (!form.bank_name) { toast('请选择银行', 'error'); return }
+    if (!ssmId) {
+      toast('这个案件还没有关联的 SSM 记录，银行户口无法正确关联，请先完善案件的公司资料', 'error')
+      return
+    }
     setLoading(true)
     const cleanedQa = form.security_qa.filter(q => q.q || q.a)
     const payload = { ...form, security_qa: cleanedQa, ssm_id: ssmId, owner_id: ownerId, updated_at: new Date() }
-    if (initial) await supabase.from('bank_accounts').update(payload).eq('id', initial.id)
-    else await supabase.from('bank_accounts').insert(payload)
-    setLoading(false); onSave()
+    let saveError = null
+    if (initial) {
+      const { error } = await supabase.from('bank_accounts').update(payload).eq('id', initial.id)
+      saveError = error
+    } else {
+      const { error } = await supabase.from('bank_accounts').insert(payload)
+      saveError = error
+    }
+    setLoading(false)
+    if (saveError) { toast('保存失败：' + saveError.message, 'error'); return }
+    onSave()
   }
 
   return (
