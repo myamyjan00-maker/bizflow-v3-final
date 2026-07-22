@@ -653,22 +653,29 @@ export default function Reports({ currentUser, onNavigate }) {
               <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📋 流水明细</h3>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[500px] overflow-y-auto">
-              {accountFilteredTx.map(t => (
-                <div key={t.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{txTypeLabels[t.type] || t.type}</span>
-                      {t.company_accounts?.name && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{t.company_accounts.name}</span>}
-                      {t.payment_method && PAYMENT_METHODS[t.payment_method] && (
-                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{PAYMENT_METHODS[t.payment_method].icon} {PAYMENT_METHODS[t.payment_method].label}</span>
-                      )}
-                      {t.cases?.case_no && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no}</span>}
+              {accountFilteredTx.map(t => {
+                const clickable = !!t.case_id
+                const Row = (
+                  <div className={`flex items-center justify-between px-5 py-3 ${clickable ? 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors' : ''}`}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{txTypeLabels[t.type] || t.type}</span>
+                        {t.company_accounts?.name && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{t.company_accounts.name}</span>}
+                        {t.payment_method && PAYMENT_METHODS[t.payment_method] && (
+                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{PAYMENT_METHODS[t.payment_method].icon} {PAYMENT_METHODS[t.payment_method].label}</span>
+                        )}
+                        {t.cases?.case_no && <span className="text-[10px] bg-teal-50 dark:bg-teal-950 text-teal-600 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no} {clickable && '→'}</span>}
+                        {!t.case_id && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">无关联案件</span>}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{fmt(t.date)} {t.note && `· ${t.note}`}</p>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{fmt(t.date)} {t.note && `· ${t.note}`}</p>
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">RM {Number(t.amount).toFixed(2)}</p>
                   </div>
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">RM {Number(t.amount).toFixed(2)}</p>
-                </div>
-              ))}
+                )
+                return clickable
+                  ? <button key={t.id} onClick={() => onNavigate('case', t.case_id)} className="w-full text-left">{Row}</button>
+                  : <div key={t.id}>{Row}</div>
+              })}
               {accountFilteredTx.length === 0 && <div className="px-5 py-8 text-center text-slate-400 text-sm">暂无流水记录</div>}
             </div>
           </div>
