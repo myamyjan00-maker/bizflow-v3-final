@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { fmt, fmtMoney } from '../lib/constants'
+import { fmt, fmtMoney, PAYMENT_METHODS } from '../lib/constants'
 
 const TABS = [
   { id: 'agent',      label: '👤 Agent 报表' },
   { id: 'pending',    label: '⏳ 未完成户口' },
   { id: 'missing',    label: '⚠️ 资料缺失' },
   { id: 'monthly',    label: '📅 月度报表' },
+  { id: 'accounts',   label: '💰 账户报表' },
 ]
 
 export default function Reports({ currentUser, onNavigate }) {
@@ -23,12 +24,15 @@ export default function Reports({ currentUser, onNavigate }) {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [agentFilter, setAgentFilter] = useState('全部')
+  const [companyAccounts, setCompanyAccounts] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [selectedAccount, setSelectedAccount] = useState('全部')
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }] = await Promise.all([
+    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }] = await Promise.all([
       supabase.from('cases').select('*').order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('owners').select('id,name,ic,phone,email,address'),
@@ -38,6 +42,8 @@ export default function Reports({ currentUser, onNavigate }) {
       supabase.from('ssm').select('id,ssm_name,reg_no,status,ezbiz_user_id,ezbiz_password'),
       supabase.from('users').select('id,display_name').eq('role', 'agent').eq('status', 'active'),
       supabase.from('files').select('ssm_id,category'),
+      supabase.from('company_accounts').select('*').order('name'),
+      supabase.from('account_transactions').select('*, company_accounts(name), cases(case_no)').order('date', { ascending: false }),
     ])
     setCases(currentUser.role === 'agent' ? (c || []).filter(x => x.agent_id === currentUser.id) : (c || []))
     setBanks(b || [])
@@ -45,6 +51,8 @@ export default function Reports({ currentUser, onNavigate }) {
     setSSMs(s || [])
     setAgents(a || [])
     setFiles(f || [])
+    setCompanyAccounts(ca || [])
+    setTransactions(tx || [])
     setLoading(false)
   }
 
@@ -53,6 +61,43 @@ export default function Reports({ currentUser, onNavigate }) {
   const getAgent = id => agents.find(a => a.id === id)
   const getCaseBanks = caseItem => banks.filter(b => b.ssm_id === caseItem?.ssm_id)
   const getCaseFiles = caseItem => files.filter(f => f.ssm_id === caseItem?.ssm_id)
+
+  // ── Account Report（616 / S14 各自的报表）──────────────────────────────────
+  const accountFilteredTx = useMemo(() => {
+    if (selectedAccount === '全部') return transactions
+    return transactions.filter(t => t.company_accounts?.name === selectedAccount)
+  }, [transactions, selectedAccount])
+
+  const accountSummary = useMemo(() => {
+    const inTypes = ['deposit_return', 'adjustment_in']
+    const outTypes = ['deposit_out', 'adjustment_out', 'charge']
+    const totalIn = accountFilteredTx.filter(t => inTypes.includes(t.type)).reduce((s, t) => s + (Number(t.amount) || 0), 0)
+    const totalOut = accountFilteredTx.filter(t => outTypes.includes(t.type)).reduce((s, t) => s + (Number(t.amount) || 0), 0)
+    const transferCount = accountFilteredTx.filter(t => t.payment_method === 'transfer').length
+    const cashCount = accountFilteredTx.filter(t => t.payment_method === 'cash').length
+    const transferAmount = accountFilteredTx.filter(t => t.payment_method === 'transfer').reduce((s, t) => s + (Number(t.amount) || 0), 0)
+    const cashAmount = accountFilteredTx.filter(t => t.payment_method === 'cash').reduce((s, t) => s + (Number(t.amount) || 0), 0)
+    return { totalIn, totalOut, net: totalIn - totalOut, transferCount, cashCount, transferAmount, cashAmount }
+  }, [accountFilteredTx])
+
+  const accountMonthly = useMemo(() => {
+    const inTypes = ['deposit_return', 'adjustment_in']
+    const outTypes = ['deposit_out', 'adjustment_out', 'charge']
+    const byMonth = {}
+    accountFilteredTx.forEach(t => {
+      const m = (t.date || t.created_at || '').slice(0, 7)
+      if (!m) return
+      if (!byMonth[m]) byMonth[m] = { in: 0, out: 0 }
+      if (inTypes.includes(t.type)) byMonth[m].in += Number(t.amount) || 0
+      else if (outTypes.includes(t.type)) byMonth[m].out += Number(t.amount) || 0
+    })
+    return Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0])).map(([m, v]) => ({ month: m, ...v, net: v.in - v.out }))
+  }, [accountFilteredTx])
+
+  const txTypeLabels = {
+    deposit_out: '💸 Deposit 出款', deposit_return: '🔄 Deposit 回款',
+    adjustment_in: '📥 调整（入）', adjustment_out: '📤 调整（出）', charge: '💳 费用',
+  }
 
   // ── Agent Report ────────────────────────────────────────────────────────────
   const agentReport = useMemo(() => {
@@ -217,7 +262,7 @@ export default function Reports({ currentUser, onNavigate }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 overflow-x-auto">
-        {TABS.map(t => (
+        {TABS.filter(t => t.id !== 'accounts' || currentUser.role !== 'agent').map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 px-3 text-xs rounded-lg font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
             {t.label}
@@ -520,6 +565,111 @@ export default function Reports({ currentUser, onNavigate }) {
                   {monthlyBanks.length === 0 && <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">本月暂无交接记录</td></tr>}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Account Report（账户报表）────────────────────────────────────── */}
+      {tab === 'accounts' && (
+        <div className="space-y-4">
+          {/* 账户选择 */}
+          <div className="flex gap-2 flex-wrap">
+            {['全部', ...companyAccounts.map(a => a.name)].map(name => (
+              <button key={name} onClick={() => setSelectedAccount(name)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${selectedAccount === name ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                {name === '全部' ? '📊 全部账户' : `🏦 ${name}`}
+              </button>
+            ))}
+          </div>
+
+          {/* 汇总卡片 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">总进账</p>
+              <p className="text-xl font-black text-green-600">RM {accountSummary.totalIn.toFixed(2)}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">总出账</p>
+              <p className="text-xl font-black text-red-500">RM {accountSummary.totalOut.toFixed(2)}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">净额</p>
+              <p className={`text-xl font-black ${accountSummary.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>RM {accountSummary.net.toFixed(2)}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">笔数</p>
+              <p className="text-xl font-black text-slate-700 dark:text-slate-200">{accountFilteredTx.length}</p>
+            </div>
+          </div>
+
+          {/* 转账/现金比例 */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">🏦 转账 / 💵 现金 比例</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-teal-50 dark:bg-teal-950 rounded-xl p-4">
+                <p className="text-xs text-teal-600">🏦 转账</p>
+                <p className="text-lg font-black text-teal-700">RM {accountSummary.transferAmount.toFixed(2)}</p>
+                <p className="text-[10px] text-teal-500">{accountSummary.transferCount} 笔</p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-950 rounded-xl p-4">
+                <p className="text-xs text-amber-600">💵 现金</p>
+                <p className="text-lg font-black text-amber-700">RM {accountSummary.cashAmount.toFixed(2)}</p>
+                <p className="text-[10px] text-amber-500">{accountSummary.cashCount} 笔</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 月度汇总 */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📅 月度汇总</h3>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  {['月份', '进账', '出账', '净额'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {accountMonthly.map(m => (
+                  <tr key={m.month} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300">{m.month}</td>
+                    <td className="px-4 py-2.5 text-green-600 font-medium">+RM {m.in.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-red-500 font-medium">-RM {m.out.toFixed(2)}</td>
+                    <td className={`px-4 py-2.5 font-bold ${m.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>RM {m.net.toFixed(2)}</td>
+                  </tr>
+                ))}
+                {accountMonthly.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">暂无资料</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 流水明细 */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📋 流水明细</h3>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[500px] overflow-y-auto">
+              {accountFilteredTx.map(t => (
+                <div key={t.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{txTypeLabels[t.type] || t.type}</span>
+                      {t.company_accounts?.name && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{t.company_accounts.name}</span>}
+                      {t.payment_method && PAYMENT_METHODS[t.payment_method] && (
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{PAYMENT_METHODS[t.payment_method].icon} {PAYMENT_METHODS[t.payment_method].label}</span>
+                      )}
+                      {t.cases?.case_no && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no}</span>}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">{fmt(t.date)} {t.note && `· ${t.note}`}</p>
+                  </div>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">RM {Number(t.amount).toFixed(2)}</p>
+                </div>
+              ))}
+              {accountFilteredTx.length === 0 && <div className="px-5 py-8 text-center text-slate-400 text-sm">暂无流水记录</div>}
             </div>
           </div>
         </div>
