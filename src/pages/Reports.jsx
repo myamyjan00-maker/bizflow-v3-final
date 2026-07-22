@@ -26,13 +26,14 @@ export default function Reports({ currentUser, onNavigate }) {
   const [agentFilter, setAgentFilter] = useState('全部')
   const [companyAccounts, setCompanyAccounts] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [deposits, setDeposits] = useState([])
   const [selectedAccount, setSelectedAccount] = useState('全部')
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }] = await Promise.all([
+    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }, { data: dep }] = await Promise.all([
       supabase.from('cases').select('*').order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('owners').select('id,name,ic,phone,email,address'),
@@ -44,6 +45,7 @@ export default function Reports({ currentUser, onNavigate }) {
       supabase.from('files').select('ssm_id,category'),
       supabase.from('company_accounts').select('*').order('name'),
       supabase.from('account_transactions').select('*, company_accounts(name), cases(case_no)').order('date', { ascending: false }),
+      supabase.from('deposits').select('account_id, bank_charge, company_accounts!account_id(name)'),
     ])
     setCases(currentUser.role === 'agent' ? (c || []).filter(x => x.agent_id === currentUser.id) : (c || []))
     setBanks(b || [])
@@ -53,6 +55,7 @@ export default function Reports({ currentUser, onNavigate }) {
     setFiles(f || [])
     setCompanyAccounts(ca || [])
     setTransactions(tx || [])
+    setDeposits(dep || [])
     setLoading(false)
   }
 
@@ -77,8 +80,16 @@ export default function Reports({ currentUser, onNavigate }) {
     const cashCount = accountFilteredTx.filter(t => t.payment_method === 'cash').length
     const transferAmount = accountFilteredTx.filter(t => t.payment_method === 'transfer').reduce((s, t) => s + (Number(t.amount) || 0), 0)
     const cashAmount = accountFilteredTx.filter(t => t.payment_method === 'cash').reduce((s, t) => s + (Number(t.amount) || 0), 0)
-    return { totalIn, totalOut, net: totalIn - totalOut, transferCount, cashCount, transferAmount, cashAmount }
-  }, [accountFilteredTx])
+    // 按类型拆开，方便看净额具体是哪几种钱构成的（不是只有一个总数）
+    const byType = ['deposit_out', 'deposit_return', 'adjustment_in', 'adjustment_out', 'charge'].map(type => {
+      const rows = accountFilteredTx.filter(t => t.type === type)
+      return { type, count: rows.length, amount: rows.reduce((s, t) => s + (Number(t.amount) || 0), 0), isOut: outTypes.includes(type) }
+    }).filter(x => x.count > 0)
+    // 银行手续费是记在 deposits.bank_charge，不是走公司账户流水，这里单独算出来当作「净额为什么是这样」的说明，不会重复计入净额本身
+    const filteredDeposits = selectedAccount === '全部' ? deposits : deposits.filter(d => d.company_accounts?.name === selectedAccount)
+    const totalBankCharge = filteredDeposits.reduce((s, d) => s + (Number(d.bank_charge) || 0), 0)
+    return { totalIn, totalOut, net: totalIn - totalOut, transferCount, cashCount, transferAmount, cashAmount, byType, totalBankCharge }
+  }, [accountFilteredTx, deposits, selectedAccount])
 
   const accountMonthly = useMemo(() => {
     const inTypes = ['deposit_return', 'adjustment_in']
@@ -601,6 +612,30 @@ export default function Reports({ currentUser, onNavigate }) {
               <p className="text-xs text-slate-400">笔数</p>
               <p className="text-xl font-black text-slate-700 dark:text-slate-200">{accountFilteredTx.length}</p>
             </div>
+          </div>
+
+          {/* 净额组成明细：净额到底是哪几种钱构成的 */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">🧮 净额组成明细</h3>
+            <div className="space-y-1.5">
+              {accountSummary.byType.map(x => (
+                <div key={x.type} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">{txTypeLabels[x.type] || x.type} <span className="text-slate-400">({x.count} 笔)</span></span>
+                  <span className={`text-sm font-bold ${x.isOut ? 'text-red-500' : 'text-green-600'}`}>{x.isOut ? '-' : '+'}RM {x.amount.toFixed(2)}</span>
+                </div>
+              ))}
+              {accountSummary.byType.length === 0 && <p className="text-xs text-slate-400 text-center py-3">暂无资料</p>}
+              <div className="flex items-center justify-between px-3 py-2 mt-1 border-t border-slate-200 dark:border-slate-700 pt-3">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">净额 = 总进账 − 总出账</span>
+                <span className={`text-base font-black ${accountSummary.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>RM {accountSummary.net.toFixed(2)}</span>
+              </div>
+            </div>
+            {accountSummary.totalBankCharge > 0 && (
+              <div className="mt-3 bg-amber-50 dark:bg-amber-950 rounded-xl px-3 py-2.5 text-xs text-amber-700">
+                💡 参考：这个账户相关的押金，累计被银行收走 <b>RM {accountSummary.totalBankCharge.toFixed(2)}</b> 手续费。
+                这笔钱不是另外单独扣款，而是已经反映在「垫付全额」跟「回款净额」的落差里，不会重复计入净额。
+              </div>
+            )}
           </div>
 
           {/* 转账/现金比例 */}

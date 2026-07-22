@@ -128,7 +128,7 @@ export default function App() {
             {page === 'cases' && <Cases currentUser={currentUser} onNavigate={goTo} initialFilter={caseFilter} toast={toast} />}
             {page === 'case' && caseId && <CaseDetail caseId={caseId} currentUser={currentUser} onBack={() => setPage('cases')} toast={toast} />}
             {page === 'reports' && <Reports currentUser={currentUser} onNavigate={goTo} />}
-            {page === 'finance' && isAdmin && <Finance currentUser={currentUser} toast={toast} />}
+            {page === 'finance' && isAdmin && <Finance currentUser={currentUser} onNavigate={goTo} toast={toast} />}
             {page === 'settings' && isAdmin && <Settings currentUser={currentUser} toast={toast} />}
           </main>
         </div>

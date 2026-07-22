@@ -3,10 +3,11 @@ import { supabase } from '../lib/supabase'
 import { fmt, fmtDateTime, PAYMENT_METHODS } from '../lib/constants'
 import { Modal, Field, Inp } from '../components/UI'
 
-export default function Finance({ currentUser, toast }) {
+export default function Finance({ currentUser, onNavigate, toast }) {
   const [accounts, setAccounts] = useState([])
   const [transactions, setTransactions] = useState([])
   const [deposits, setDeposits] = useState([])
+  const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdjust, setShowAdjust] = useState(null)
   const [showTxn, setShowTxn] = useState(false)
@@ -15,16 +16,21 @@ export default function Finance({ currentUser, toast }) {
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: a }, { data: t }, { data: d }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: d }, { data: cs }] = await Promise.all([
       supabase.from('company_accounts').select('*').order('name'),
       supabase.from('account_transactions').select('*, company_accounts!account_id(name), cases(case_no), bank_accounts(bank_name,account_no)').order('created_at', { ascending: false }).limit(50),
       supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), ssm(ssm_name), company_accounts!account_id(name)').eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('cases').select('id, ssm_id'),
     ])
     setAccounts(a || [])
     setTransactions(t || [])
     setDeposits(d || [])
+    setCases(cs || [])
     setLoading(false)
   }
+
+  // deposits 表本身没有直接关联案件，要透过 ssm_id 反查回对应的案件 id，才能点击跳转
+  const getCaseIdForSsm = (ssmId) => cases.find(c => c.ssm_id === ssmId)?.id || null
 
   const adjustBalance = async (accountId, newBalance, note, transferAmt, cashAmt) => {
     const acc = accounts.find(a => a.id === accountId)
@@ -118,10 +124,11 @@ export default function Finance({ currentUser, toast }) {
             {deposits.map(d => {
               const outstanding = (Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)
               const days = d.transfer_date ? Math.floor((Date.now() - new Date(d.transfer_date).getTime()) / 86400000) : null
-              return (
-                <div key={d.id} className="flex items-center gap-4 px-5 py-3">
+              const caseId = getCaseIdForSsm(d.ssm_id)
+              const content = (
+                <div className={`flex items-center gap-4 px-5 py-3 ${caseId ? 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors' : ''}`}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{d.ssm?.ssm_name || '—'}</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{d.ssm?.ssm_name || '—'} {caseId && <span className="text-teal-500">→</span>}</p>
                     <p className="text-xs text-slate-500">{d.bank_accounts?.bank_name} {d.bank_accounts?.account_no && `— ${d.bank_accounts.account_no}`} {d.company_accounts?.name && `· ${d.company_accounts.name}`}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -130,6 +137,9 @@ export default function Finance({ currentUser, toast }) {
                   </div>
                 </div>
               )
+              return caseId
+                ? <button key={d.id} onClick={() => onNavigate('case', caseId)} className="w-full text-left">{content}</button>
+                : <div key={d.id}>{content}</div>
             })}
           </div>
         </div>
@@ -143,8 +153,8 @@ export default function Finance({ currentUser, toast }) {
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {transactions.map(t => {
             const info = txnTypeLabels[t.type] || { label: t.type, color: 'text-slate-600', sign: '' }
-            return (
-              <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+            const content = (
+              <div className={`flex items-center gap-3 px-5 py-3 ${t.case_id ? 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{info.label}</span>
@@ -153,7 +163,7 @@ export default function Finance({ currentUser, toast }) {
                     ) : t.payment_method && PAYMENT_METHODS[t.payment_method] ? (
                       <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{PAYMENT_METHODS[t.payment_method].icon} {PAYMENT_METHODS[t.payment_method].label}</span>
                     ) : null}
-                    {t.cases?.case_no && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no}</span>}
+                    {t.cases?.case_no && <span className="text-[10px] bg-teal-50 dark:bg-teal-950 text-teal-600 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no} {t.case_id && '→'}</span>}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{t.company_accounts?.name} · {fmt(t.created_at)} {t.note && `· ${t.note}`}</p>
                 </div>
@@ -162,6 +172,9 @@ export default function Finance({ currentUser, toast }) {
                 </p>
               </div>
             )
+            return t.case_id
+              ? <button key={t.id} onClick={() => onNavigate('case', t.case_id)} className="w-full text-left">{content}</button>
+              : <div key={t.id}>{content}</div>
           })}
           {transactions.length === 0 && <div className="px-5 py-8 text-center text-slate-400 text-sm">暂无流水记录</div>}
         </div>
