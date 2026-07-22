@@ -225,6 +225,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   }
   // 净额优先用手动修正过的 transfer_amount，没有才用「金额 - 手续费」自动算
   const getNetAmount = (d) => (d.transfer_amount !== null && d.transfer_amount !== undefined) ? Number(d.transfer_amount) : (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
+  const totalDeposit = deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0)
   const totalNetDeposit = deposits.reduce((s, d) => s + getNetAmount(d), 0)
   const totalReturned = deposits.reduce((s, d) => s + getReturnedAmount(d), 0)
   // 待回 = 净额总和 - 已回金额
