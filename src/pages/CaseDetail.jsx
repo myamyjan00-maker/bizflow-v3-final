@@ -944,18 +944,22 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
 }
 
 function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser, onClose, onSave, toast }) {
-  const [form, setForm] = useState(initial || { bank_account_id: banks[0]?.id || '', account_id: '', payment_method: 'transfer', amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', returned_amount: 0, return_date: '', status: 'pending', notes: '' })
+  const [form, setForm] = useState(initial || { bank_account_id: banks[0]?.id || '', account_id: '', transfer_amount: 0, cash_amount: 0, amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', returned_amount: 0, return_date: '', status: 'pending', notes: '' })
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const transferAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
+  const splitTotal = (Number(form.transfer_amount) || 0) + (Number(form.cash_amount) || 0)
+  const splitMismatch = Number(form.amount) > 0 && splitTotal !== Number(form.amount)
   // 待回金额 = 净额(垫付金额 - 银行手续费) - 已回金额，不是拿总垫付金额去减（手续费已经花掉，不会再回来）
   const netAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
   const outstanding = netAmount - (Number(form.returned_amount) || 0)
 
   const handleSave = async () => {
     if (!form.amount) { toast('请填写金额', 'error'); return }
+    if (splitMismatch) { toast('转账金额 + 现金金额，必须等于 Deposit 总金额', 'error'); return }
     setLoading(true)
-    const payload = { ...form, ssm_id: ssmId, updated_at: new Date() }
+    // payment_method 只是给旧资料/其他地方参考用的标签，实际拆分金额看 transfer_amount / cash_amount
+    const payload = { ...form, payment_method: Number(form.cash_amount) > 0 && Number(form.transfer_amount) > 0 ? 'split' : Number(form.cash_amount) > 0 ? 'cash' : 'transfer', ssm_id: ssmId, updated_at: new Date() }
 
     let saveError = null
     if (initial) {
@@ -973,7 +977,7 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
     }
 
     // 只有 Deposit 记录真的存成功了，而且是新增（不是编辑）、有选公司账户，才扣款
-    // 扣款同时写入 account_transactions，保持「余额」跟「流水记录」两边对得上
+    // 扣款同时写入 account_transactions，保持「余额」跟「流水记录」两边对得上，并保留转账/现金的拆分
     if (form.account_id && !initial) {
       const acc = accounts.find(a => a.id === form.account_id)
       if (acc) {
@@ -982,7 +986,8 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
         }).eq('id', form.account_id)
         await supabase.from('account_transactions').insert({
           account_id: form.account_id, bank_account_id: form.bank_account_id, case_id: caseId,
-          type: 'deposit_out', amount: Number(form.amount) || 0, payment_method: form.payment_method,
+          type: 'deposit_out', amount: Number(form.amount) || 0, payment_method: payload.payment_method,
+          transfer_amount: Number(form.transfer_amount) || 0, cash_amount: Number(form.cash_amount) || 0,
           reference: `Deposit - ${form.transfer_to || ''}`, date: form.transfer_date || new Date(),
           note: form.notes || '', created_by: currentUser.id,
         })
@@ -1004,15 +1009,23 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
         <Field label="从哪个公司账户">
           <Sel value={form.account_id} onChange={v => set('account_id', v)} options={accounts.map(a => ({ value: a.id, label: `${a.name} (RM ${Number(a.balance).toFixed(2)})` }))} />
         </Field>
-        <Field label="付款方式">
-          <div className="flex gap-2">
-            {Object.entries(PAYMENT_METHODS).map(([k, m]) => (
-              <button key={k} type="button" onClick={() => set('payment_method', k)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.payment_method === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                {m.icon} {m.label}
-              </button>
-            ))}
+        <Field label="付款方式（可拆分）" span2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">🏦 转账金额 (RM)</label>
+              <Inp type="number" value={form.transfer_amount} onChange={v => set('transfer_amount', v)} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">💵 现金金额 (RM)</label>
+              <Inp type="number" value={form.cash_amount} onChange={v => set('cash_amount', v)} />
+            </div>
           </div>
+          {form.amount > 0 && (
+            <p className={`text-xs mt-1.5 ${splitMismatch ? 'text-red-500' : 'text-slate-400'}`}>
+              转账 + 现金 = RM {splitTotal.toFixed(2)}
+              {splitMismatch ? `　⚠️ 跟 Deposit 金额 (RM ${Number(form.amount).toFixed(2)}) 对不上` : '　✓ 跟 Deposit 金额一致'}
+            </p>
+          )}
         </Field>
         <Field label="Deposit 金额 (RM) *"><Inp type="number" value={form.amount} onChange={v => set('amount', v)} /></Field>
         <Field label="谁存的"><Inp value={form.depositor} onChange={v => set('depositor', v)} placeholder="存款人" /></Field>
@@ -1046,14 +1059,23 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
 function CostFormModal({ caseId, currentUser, onClose, onSave }) {
   const [category, setCategory] = useState('ssm_fee')
   const [amount, setAmount] = useState(0)
-  const [paymentMethod, setPaymentMethod] = useState('transfer')
+  const [transferAmt, setTransferAmt] = useState(0)
+  const [cashAmt, setCashAmt] = useState(0)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
+  const splitTotal = (Number(transferAmt) || 0) + (Number(cashAmt) || 0)
+  const splitMismatch = Number(amount) > 0 && splitTotal !== Number(amount)
 
   const handleSave = async () => {
     if (!amount) return
+    if (splitMismatch) return
     setLoading(true)
-    await supabase.from('case_costs').insert({ case_id: caseId, category, amount: Number(amount), payment_method: paymentMethod, note, created_by: currentUser.id })
+    const paymentMethod = Number(cashAmt) > 0 && Number(transferAmt) > 0 ? 'split' : Number(cashAmt) > 0 ? 'cash' : 'transfer'
+    await supabase.from('case_costs').insert({
+      case_id: caseId, category, amount: Number(amount),
+      payment_method: paymentMethod, transfer_amount: Number(transferAmt) || 0, cash_amount: Number(cashAmt) || 0,
+      note, created_by: currentUser.id,
+    })
     const cat = COST_CATEGORIES.find(c => c.key === category)
     setLoading(false); onSave(cat?.label || category, amount, note)
   }
@@ -1065,20 +1087,28 @@ function CostFormModal({ caseId, currentUser, onClose, onSave }) {
           <Sel value={category} onChange={setCategory} options={COST_CATEGORIES.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))} />
         </Field>
         <Field label="金额 (RM) *"><Inp type="number" value={amount} onChange={setAmount} /></Field>
-        <Field label="付款方式">
-          <div className="flex gap-2">
-            {Object.entries(PAYMENT_METHODS).map(([k, m]) => (
-              <button key={k} type="button" onClick={() => setPaymentMethod(k)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                {m.icon} {m.label}
-              </button>
-            ))}
+        <Field label="付款方式（可拆分）">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">🏦 转账金额 (RM)</label>
+              <Inp type="number" value={transferAmt} onChange={setTransferAmt} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">💵 现金金额 (RM)</label>
+              <Inp type="number" value={cashAmt} onChange={setCashAmt} />
+            </div>
           </div>
+          {amount > 0 && (
+            <p className={`text-xs mt-1.5 ${splitMismatch ? 'text-red-500' : 'text-slate-400'}`}>
+              转账 + 现金 = RM {splitTotal.toFixed(2)}
+              {splitMismatch ? `　⚠️ 跟金额 (RM ${Number(amount).toFixed(2)}) 对不上` : '　✓ 一致'}
+            </p>
+          )}
         </Field>
         <Field label="备注"><Inp value={note} onChange={setNote} placeholder="（可选）" /></Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={handleSave} disabled={loading || !amount} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
+          <button onClick={handleSave} disabled={loading || !amount || splitMismatch} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
         </div>
       </div>
     </Modal>

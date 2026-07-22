@@ -26,13 +26,16 @@ export default function Finance({ currentUser, toast }) {
     setLoading(false)
   }
 
-  const adjustBalance = async (accountId, newBalance, note, paymentMethod) => {
+  const adjustBalance = async (accountId, newBalance, note, transferAmt, cashAmt) => {
     const acc = accounts.find(a => a.id === accountId)
     const diff = Number(newBalance) - Number(acc.balance)
+    const paymentMethod = Number(cashAmt) > 0 && Number(transferAmt) > 0 ? 'split' : Number(cashAmt) > 0 ? 'cash' : 'transfer'
     await supabase.from('company_accounts').update({ balance: Number(newBalance), updated_at: new Date() }).eq('id', accountId)
     await supabase.from('account_transactions').insert({
       account_id: accountId, type: diff >= 0 ? 'adjustment_in' : 'adjustment_out',
-      amount: Math.abs(diff), payment_method: paymentMethod, note: note || '手动调整余额', created_by: currentUser.id,
+      amount: Math.abs(diff), payment_method: paymentMethod,
+      transfer_amount: Number(transferAmt) || 0, cash_amount: Number(cashAmt) || 0,
+      note: note || '手动调整余额', created_by: currentUser.id,
     })
     toast('余额已更新'); setShowAdjust(null); loadData()
   }
@@ -145,9 +148,11 @@ export default function Finance({ currentUser, toast }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{info.label}</span>
-                    {t.payment_method && PAYMENT_METHODS[t.payment_method] && (
+                    {t.payment_method === 'split' ? (
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">🏦 {Number(t.transfer_amount || 0).toFixed(0)} + 💵 {Number(t.cash_amount || 0).toFixed(0)}</span>
+                    ) : t.payment_method && PAYMENT_METHODS[t.payment_method] ? (
                       <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">{PAYMENT_METHODS[t.payment_method].icon} {PAYMENT_METHODS[t.payment_method].label}</span>
-                    )}
+                    ) : null}
                     {t.cases?.case_no && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no}</span>}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{t.company_accounts?.name} · {fmt(t.created_at)} {t.note && `· ${t.note}`}</p>
@@ -173,7 +178,11 @@ export default function Finance({ currentUser, toast }) {
 function AdjustModal({ account, onClose, onSave }) {
   const [balance, setBalance] = useState(String(account.balance))
   const [note, setNote] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('transfer')
+  const [transferAmt, setTransferAmt] = useState(0)
+  const [cashAmt, setCashAmt] = useState(0)
+  const diff = balance ? Math.abs(Number(balance) - Number(account.balance)) : 0
+  const splitTotal = (Number(transferAmt) || 0) + (Number(cashAmt) || 0)
+  const splitMismatch = diff > 0 && splitTotal !== diff
   return (
     <Modal title={`调整 ${account.name} 余额`} onClose={onClose}>
       <div className="space-y-3">
@@ -182,25 +191,33 @@ function AdjustModal({ account, onClose, onSave }) {
           <p className="text-xl font-black text-slate-800 dark:text-slate-100">RM {Number(account.balance).toFixed(2)}</p>
         </div>
         <Field label="新余额 (RM)"><Inp type="number" value={balance} onChange={setBalance} /></Field>
-        <Field label="付款方式">
-          <div className="flex gap-2">
-            {Object.entries(PAYMENT_METHODS).map(([k, m]) => (
-              <button key={k} type="button" onClick={() => setPaymentMethod(k)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                {m.icon} {m.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="备注"><Inp value={note} onChange={setNote} placeholder="调整原因..." /></Field>
         {balance && (
           <div className={`text-xs px-3 py-2 rounded-lg ${Number(balance) >= Number(account.balance) ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
             变动：{Number(balance) >= Number(account.balance) ? '+' : ''}RM {(Number(balance) - Number(account.balance)).toFixed(2)}
           </div>
         )}
+        <Field label="这笔变动的付款方式（可拆分）">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">🏦 转账金额 (RM)</label>
+              <Inp type="number" value={transferAmt} onChange={setTransferAmt} />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">💵 现金金额 (RM)</label>
+              <Inp type="number" value={cashAmt} onChange={setCashAmt} />
+            </div>
+          </div>
+          {diff > 0 && (
+            <p className={`text-xs mt-1.5 ${splitMismatch ? 'text-red-500' : 'text-slate-400'}`}>
+              转账 + 现金 = RM {splitTotal.toFixed(2)}
+              {splitMismatch ? `　⚠️ 跟变动金额 (RM ${diff.toFixed(2)}) 对不上` : '　✓ 一致'}
+            </p>
+          )}
+        </Field>
+        <Field label="备注"><Inp value={note} onChange={setNote} placeholder="调整原因..." /></Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={() => onSave(account.id, balance, note, paymentMethod)} disabled={!balance}
+          <button onClick={() => onSave(account.id, balance, note, transferAmt, cashAmt)} disabled={!balance || splitMismatch}
             className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">确认更新</button>
         </div>
       </div>
