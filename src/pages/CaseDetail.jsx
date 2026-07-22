@@ -119,7 +119,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     const { data: allReturns } = await supabase.from('deposit_returns').select('amount').eq('deposit_id', depositId)
     const totalReturnedForDeposit = (allReturns || []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
     const dep = deposits.find(d => d.id === depositId)
-    const netAmt = dep ? (Number(dep.amount) || 0) - (Number(dep.bank_charge) || 0) : 0
+    const netAmt = dep ? ((dep.transfer_amount !== null && dep.transfer_amount !== undefined) ? Number(dep.transfer_amount) : (Number(dep.amount) || 0) - (Number(dep.bank_charge) || 0)) : 0
     await supabase.from('deposits').update({
       returned_amount: totalReturnedForDeposit,
       status: totalReturnedForDeposit >= netAmt ? 'returned' : 'pending',
@@ -223,11 +223,12 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     if (d.status === 'returned') return (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
     return 0
   }
-  const totalDeposit = deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0)
-  const totalBankCharges = deposits.reduce((s, d) => s + (Number(d.bank_charge) || 0), 0)
+  // 净额优先用手动修正过的 transfer_amount，没有才用「金额 - 手续费」自动算
+  const getNetAmount = (d) => (d.transfer_amount !== null && d.transfer_amount !== undefined) ? Number(d.transfer_amount) : (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
+  const totalNetDeposit = deposits.reduce((s, d) => s + getNetAmount(d), 0)
   const totalReturned = deposits.reduce((s, d) => s + getReturnedAmount(d), 0)
-  // 待回 = 总垫付金额 - 银行手续费(已花掉，不会回来) - 已回金额
-  const outstandingDeposit = totalDeposit - totalBankCharges - totalReturned
+  // 待回 = 净额总和 - 已回金额
+  const outstandingDeposit = totalNetDeposit - totalReturned
 
   const currentStatusIndex = CASE_STATUSES.indexOf(cas.status)
   const nextStatus = CASE_STATUSES[currentStatusIndex + 1]
@@ -542,7 +543,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
 
               {deposits.length === 0 && <p className="text-slate-400 text-sm text-center py-8">暂无 Deposit 记录</p>}
               {deposits.map(d => {
-                const transferred = (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
+                const transferred = (d.transfer_amount !== null && d.transfer_amount !== undefined) ? Number(d.transfer_amount) : (Number(d.amount) || 0) - (Number(d.bank_charge) || 0)
                 const outstanding = transferred - getReturnedAmount(d)
                 return (
                   <div key={d.id} className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
@@ -1029,15 +1030,29 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
 }
 
 function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser, onClose, onSave, toast }) {
-  const [form, setForm] = useState(initial || { bank_account_id: banks[0]?.id || '', account_id: '', payment_method: 'transfer', amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', notes: '' })
+  // initial 是从数据库查回来的，会带着 bank_accounts / company_accounts 这些「关联查询」对象
+  // 不是真正的欄位，保存时如果整个塞进去，数据库会直接拒绝（找不到这个欄位）
+  const cleanInitial = initial ? (() => {
+    const { bank_accounts, company_accounts, ...rest } = initial
+    return rest
+  })() : null
+  const [form, setForm] = useState(cleanInitial || { bank_account_id: banks[0]?.id || '', account_id: '', payment_method: 'transfer', amount: 0, depositor: '', bank_charge: 0, transfer_to: '', transfer_to_account: '', transfer_date: '', transfer_amount: null, notes: '' })
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const transferAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
+  const autoTransferAmount = (Number(form.amount) || 0) - (Number(form.bank_charge) || 0)
+  // 转出金额预设自动算，但可以手动覆写（比如打错了要修正）；有手动填过就用手动的，没填就用自动算的
+  const transferAmount = form.transfer_amount !== null && form.transfer_amount !== undefined && form.transfer_amount !== '' ? Number(form.transfer_amount) : autoTransferAmount
 
   const handleSave = async () => {
     if (!form.amount) { toast('请填写金额', 'error'); return }
     setLoading(true)
-    const payload = { ...form, ssm_id: ssmId, updated_at: new Date() }
+    // 只送真正存在于 deposits 表的欄位，避免把关联对象或不相干的东西一起送进去
+    const payload = {
+      bank_account_id: form.bank_account_id, account_id: form.account_id, payment_method: form.payment_method,
+      amount: Number(form.amount) || 0, depositor: form.depositor, bank_charge: Number(form.bank_charge) || 0,
+      transfer_to: form.transfer_to, transfer_to_account: form.transfer_to_account, transfer_date: form.transfer_date || null,
+      transfer_amount: transferAmount, notes: form.notes, ssm_id: ssmId, updated_at: new Date(),
+    }
 
     let saveError = null
     if (initial) {
@@ -1100,8 +1115,12 @@ function DepositFormModal({ initial, ssmId, caseId, banks, accounts, currentUser
         <Field label="谁存的"><Inp value={form.depositor} onChange={v => set('depositor', v)} placeholder="存款人" /></Field>
         <Field label="Bank Charge (RM)"><Inp type="number" value={form.bank_charge} onChange={v => set('bank_charge', v)} /></Field>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">转出金额（自动）</label>
-          <div className={`px-3 py-2 rounded-lg border text-sm font-bold ${transferAmount >= 0 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600'}`}>RM {transferAmount.toFixed(2)}</div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">转出金额（可修改，预设自动算）</label>
+          <Inp type="number" value={transferAmount} onChange={v => set('transfer_amount', v)}
+            className={transferAmount >= 0 ? 'border-green-200 text-green-700 font-bold' : 'border-red-200 text-red-600 font-bold'} />
+          {form.transfer_amount !== null && form.transfer_amount !== undefined && form.transfer_amount !== '' && Number(form.transfer_amount) !== autoTransferAmount && (
+            <button type="button" onClick={() => set('transfer_amount', null)} className="text-[10px] text-teal-600 hover:text-teal-800 mt-1">↺ 已手动修改，点这里恢复自动计算 (RM {autoTransferAmount.toFixed(2)})</button>
+          )}
         </div>
         <Field label="转给谁"><Inp value={form.transfer_to} onChange={v => set('transfer_to', v)} /></Field>
         <Field label="收款账号"><Inp value={form.transfer_to_account} onChange={v => set('transfer_to_account', v)} /></Field>
@@ -1137,7 +1156,7 @@ function ReturnFormModal({ deposit, accounts, onClose, onSave }) {
     <Modal title="💰 添加回款记录" onClose={onClose}>
       <div className="space-y-3">
         <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-xs text-slate-500">
-          这笔 Deposit 净额 RM {((Number(deposit.amount) || 0) - (Number(deposit.bank_charge) || 0)).toFixed(2)}，可以分好几次、不同账户、不同方式陆续记录回款。
+          这笔 Deposit 净额 RM {((deposit.transfer_amount !== null && deposit.transfer_amount !== undefined) ? Number(deposit.transfer_amount) : (Number(deposit.amount) || 0) - (Number(deposit.bank_charge) || 0)).toFixed(2)}，可以分好几次、不同账户、不同方式陆续记录回款。
         </div>
         <Field label="回到哪个公司账户 *">
           <Sel value={accountId} onChange={setAccountId} options={accounts.map(a => ({ value: a.id, label: `${a.name} (RM ${Number(a.balance).toFixed(2)})` }))} />
