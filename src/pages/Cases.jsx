@@ -13,6 +13,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
   const [agentFilter, setAgentFilter] = useState('全部')
   const [page, setPage] = useState(1)
   const [showNewCase, setShowNewCase] = useState(false)
+  const [sortBy, setSortBy] = useState('default')
   const PAGE_SIZE = 25
 
   useEffect(() => { loadData() }, [])
@@ -31,15 +32,33 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
     setLoading(false)
   }
 
-  const filtered = useMemo(() => cases.filter(c => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || c.ssm?.ssm_name?.toLowerCase().includes(q) ||
-      c.owners?.name?.toLowerCase().includes(q) || c.owners?.ic?.includes(q) ||
-      c.case_no?.toLowerCase().includes(q) || c.owners?.phone?.includes(q)
-    const matchStatus = statusFilter === '全部' || c.status === statusFilter
-    const matchAgent = agentFilter === '全部' || c.users?.display_name === agentFilter
-    return matchSearch && matchStatus && matchAgent
-  }).sort((a, b) => (b.is_blocked ? 1 : 0) - (a.is_blocked ? 1 : 0)), [cases, search, statusFilter, agentFilter])
+  const filtered = useMemo(() => {
+    const list = cases.filter(c => {
+      const q = search.toLowerCase()
+      const matchSearch = !q || c.ssm?.ssm_name?.toLowerCase().includes(q) ||
+        c.owners?.name?.toLowerCase().includes(q) || c.owners?.ic?.includes(q) ||
+        c.case_no?.toLowerCase().includes(q) || c.owners?.phone?.includes(q)
+      const matchStatus = statusFilter === '全部' || c.status === statusFilter
+      const matchAgent = agentFilter === '全部' || c.users?.display_name === agentFilter
+      return matchSearch && matchStatus && matchAgent
+    })
+    if (sortBy === 'company_az') {
+      return list.sort((a, b) => (a.ssm?.ssm_name || '').localeCompare(b.ssm?.ssm_name || ''))
+    }
+    if (sortBy === 'owner_az') {
+      return list.sort((a, b) => (a.owners?.name || '').localeCompare(b.owners?.name || ''))
+    }
+    if (sortBy === 'agent_company') {
+      // 按 Agent 分组，同一个 Agent 底下再按公司名称 A-Z，方便一眼数出每个 Agent 有几个案件/Owner
+      return list.sort((a, b) => {
+        const agentCmp = (a.users?.display_name || '').localeCompare(b.users?.display_name || '')
+        if (agentCmp !== 0) return agentCmp
+        return (a.ssm?.ssm_name || '').localeCompare(b.ssm?.ssm_name || '')
+      })
+    }
+    // 默认：卡住的案件排最前面
+    return list.sort((a, b) => (b.is_blocked ? 1 : 0) - (a.is_blocked ? 1 : 0))
+  }, [cases, search, statusFilter, agentFilter, sortBy])
 
   useEffect(() => { setPage(1) }, [search, statusFilter, agentFilter])
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -92,7 +111,18 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
             {agents.map(a => <option key={a.id}>{a.display_name}</option>)}
           </select>
         )}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+          <option value="default">默认排序（卡住优先）</option>
+          <option value="company_az">公司名称 A→Z</option>
+          <option value="owner_az">Owner 姓名 A→Z</option>
+          <option value="agent_company">按 Agent 分组 + 公司 A→Z</option>
+        </select>
       </div>
+
+      {sortBy === 'agent_company' && agentFilter === '全部' && (
+        <p className="text-xs text-slate-400">💡 已按 Agent 分组排列，同一个 Agent 的案件会排在一起，方便清点数量</p>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
