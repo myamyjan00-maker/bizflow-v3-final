@@ -955,7 +955,7 @@ function EditProfileModal({ cas, onClose, onSave }) {
 }
 
 function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, toast }) {
-  const empty = { bank_name: 'RHB', account_no: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
+  const empty = { bank_name: 'RHB', account_no: '', com_id: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
   const [form, setForm] = useState(initial ? { ...initial, security_qa: initial.security_qa?.filter(q => q.q) || [{ q: '', a: '' }] } : empty)
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -994,6 +994,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         <Field label="状态"><Sel value={form.status} onChange={v => set('status', v)} options={BANK_STATUSES.filter(s => s !== 'Blacklist' || ['super_admin', 'admin'].includes(currentUser.role))} /></Field>
         <Field label="账号"><Inp value={form.account_no} onChange={v => set('account_no', v)} /></Field>
         <Field label="分行"><Inp value={form.branch} onChange={v => set('branch', v)} /></Field>
+        <Field label="COM ID"><Inp value={form.com_id} onChange={v => set('com_id', v)} /></Field>
         <Field label="开户日期"><Inp type="date" value={form.open_date} onChange={v => set('open_date', v)} /></Field>
         <Field label="交接日期"><Inp type="date" value={form.handover_date} onChange={v => set('handover_date', v)} /></Field>
         <Field label="收费 (RM)"><Inp type="number" value={form.commission} onChange={v => set('commission', v)} /></Field>
