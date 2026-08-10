@@ -965,6 +965,22 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
   const totalFees = (Number(form.fee_deposit) || 0) + (Number(form.fee_bank_charge) || 0) + (Number(form.fee_card) || 0) + (Number(form.fee_simcard) || 0) + (Number(form.fee_forex) || 0) + (Number(form.fee_others) || 0)
   const netCommission = (Number(form.commission) || 0) - totalFees
 
+  const [generatingComId, setGeneratingComId] = useState(false)
+  const generateComId = async () => {
+    if (!form.handover_date) { toast('请先填交接日期', 'error'); return }
+    setGeneratingComId(true)
+    const [y, m, d] = form.handover_date.split('-')
+    const datePart = `${d}${m}${y.slice(2)}` // DDMMYY
+    // 查同一天已经有几笔交接（编辑时要排除自己这一笔，不然会多算一次）
+    let query = supabase.from('bank_accounts').select('id', { count: 'exact', head: true }).eq('handover_date', form.handover_date)
+    if (initial?.id) query = query.neq('id', initial.id)
+    const { count, error } = await query
+    setGeneratingComId(false)
+    if (error) { toast('生成失败：' + error.message, 'error'); return }
+    const seq = String((count || 0) + 1).padStart(3, '0')
+    set('com_id', `COM-${datePart}-${seq}`)
+  }
+
   const handleSave = async () => {
     if (!form.bank_name) { toast('请选择银行', 'error'); return }
     if (!ssmId) {
@@ -994,7 +1010,16 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         <Field label="状态"><Sel value={form.status} onChange={v => set('status', v)} options={BANK_STATUSES.filter(s => s !== 'Blacklist' || ['super_admin', 'admin'].includes(currentUser.role))} /></Field>
         <Field label="账号"><Inp value={form.account_no} onChange={v => set('account_no', v)} /></Field>
         <Field label="分行"><Inp value={form.branch} onChange={v => set('branch', v)} /></Field>
-        <Field label="COM ID"><Inp value={form.com_id} onChange={v => set('com_id', v)} /></Field>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">COM ID</label>
+          <div className="flex gap-2">
+            <Inp value={form.com_id} onChange={v => set('com_id', v)} placeholder="COM-DDMMYY-序号" />
+            <button type="button" onClick={generateComId} disabled={generatingComId}
+              className="px-3 py-2 rounded-lg bg-teal-50 text-teal-700 text-xs font-medium hover:bg-teal-100 whitespace-nowrap disabled:opacity-50">
+              {generatingComId ? '生成中...' : '🔄 自动生成'}
+            </button>
+          </div>
+        </div>
         <Field label="开户日期"><Inp type="date" value={form.open_date} onChange={v => set('open_date', v)} /></Field>
         <Field label="交接日期"><Inp type="date" value={form.handover_date} onChange={v => set('handover_date', v)} /></Field>
         <Field label="收费 (RM)"><Inp type="number" value={form.commission} onChange={v => set('commission', v)} /></Field>
