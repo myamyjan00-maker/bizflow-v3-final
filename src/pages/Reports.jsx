@@ -28,6 +28,7 @@ export default function Reports({ currentUser, onNavigate }) {
   const [transactions, setTransactions] = useState([])
   const [deposits, setDeposits] = useState([])
   const [selectedAccount, setSelectedAccount] = useState('全部')
+  const [expandedAgent, setExpandedAgent] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -131,9 +132,15 @@ export default function Reports({ currentUser, onNavigate }) {
         s + (Number(b.fee_deposit) || 0) + (Number(b.fee_bank_charge) || 0) +
         (Number(b.fee_card) || 0) + (Number(b.fee_simcard) || 0) + (Number(b.fee_forex) || 0) + (Number(b.fee_others) || 0), 0)
       const netProfit = totalCommission - totalCosts
-      return { agent: ag, totalCases: agCases.length, totalBanks: agBanks.length, completedBanks: completedBanks.length, pendingBanks: pendingBanks.length, terminatedCases: terminatedCases.length, totalCommission, totalCosts, netProfit }
+      // 把案件清单也带出来，方便点开看具体是哪些公司名称
+      const caseList = agCases.map(c => {
+        const ssm = ssms.find(s => s.id === c.ssm_id)
+        const casBanks = banks.filter(b => b.ssm_id === c.ssm_id)
+        return { id: c.id, case_no: c.case_no, ssm_name: ssm?.ssm_name || '（未命名）', status: c.status, terminated: !!c.termination_type, bankCount: casBanks.length }
+      })
+      return { agent: ag, totalCases: agCases.length, totalBanks: agBanks.length, completedBanks: completedBanks.length, pendingBanks: pendingBanks.length, terminatedCases: terminatedCases.length, totalCommission, totalCosts, netProfit, caseList }
     }).filter(r => r.totalCases > 0)
-  }, [agents, cases, banks])
+  }, [agents, cases, banks, ssms])
 
   // ── Pending Banks ───────────────────────────────────────────────────────────
   const pendingBanks = useMemo(() => {
@@ -372,17 +379,47 @@ export default function Reports({ currentUser, onNavigate }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {agentReport.map(r => (
-                    <tr key={r.agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">{r.agent.display_name}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.totalCases}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.totalBanks}</td>
-                      <td className="px-4 py-3"><span className="text-green-600 font-bold">{r.completedBanks}</span></td>
-                      <td className="px-4 py-3"><span className={r.pendingBanks > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}>{r.pendingBanks}</span></td>
-                      <td className="px-4 py-3"><span className={r.terminatedCases > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}>{r.terminatedCases}</span></td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">RM {r.totalCommission.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-red-500">RM {r.totalCosts.toFixed(2)}</td>
-                      <td className="px-4 py-3 font-bold"><span className={r.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}>RM {r.netProfit.toFixed(2)}</span></td>
-                    </tr>
+                    <>
+                      <tr key={r.agent.id} onClick={() => setExpandedAgent(expandedAgent === r.agent.id ? null : r.agent.id)}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                        <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">
+                          <span className="inline-flex items-center gap-1">
+                            <span className={`text-[10px] transition-transform ${expandedAgent === r.agent.id ? 'rotate-90' : ''}`}>▶</span>
+                            {r.agent.display_name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.totalCases}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.totalBanks}</td>
+                        <td className="px-4 py-3"><span className="text-green-600 font-bold">{r.completedBanks}</span></td>
+                        <td className="px-4 py-3"><span className={r.pendingBanks > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}>{r.pendingBanks}</span></td>
+                        <td className="px-4 py-3"><span className={r.terminatedCases > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}>{r.terminatedCases}</span></td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">RM {r.totalCommission.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-red-500">RM {r.totalCosts.toFixed(2)}</td>
+                        <td className="px-4 py-3 font-bold"><span className={r.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}>RM {r.netProfit.toFixed(2)}</span></td>
+                      </tr>
+                      {expandedAgent === r.agent.id && (
+                        <tr key={`${r.agent.id}-detail`}>
+                          <td colSpan={9} className="px-4 py-3 bg-slate-50 dark:bg-slate-800">
+                            <p className="text-xs font-bold text-slate-500 mb-2">{r.agent.display_name} 名下的案件（{r.caseList.length} 个，点击可查看详情）</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                              {r.caseList.map(c => (
+                                <button key={c.id} onClick={(e) => { e.stopPropagation(); onNavigate('case', c.id) }}
+                                  className="flex items-center justify-between text-left bg-white dark:bg-slate-900 rounded-lg px-3 py-2 text-xs hover:shadow-sm transition-shadow border border-slate-100 dark:border-slate-700">
+                                  <span className="truncate">
+                                    <span className="font-mono text-slate-400 mr-1.5">{c.case_no}</span>
+                                    <span className="font-medium text-slate-700 dark:text-slate-200">{c.ssm_name}</span>
+                                  </span>
+                                  <span className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                                    <span className="text-slate-400">🏦{c.bankCount}</span>
+                                    {c.terminated ? <span className="text-red-500">已终止</span> : <span className="text-slate-500">{c.status}</span>}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                   {agentReport.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">暂无数据</td></tr>}
                   {agentReport.length > 0 && (
