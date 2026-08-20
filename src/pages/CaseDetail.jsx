@@ -1321,6 +1321,11 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
 
   const handleUpload = async (cat, e) => {
     const file = e.target.files[0]; if (!file) return
+    if (!ssmId) {
+      toast('这个案件还没有 SSM 资料，文件暂时无法上传——请先到「资料」Tab 补上 SSM 资料，再回来上传', 'error')
+      e.target.value = ''
+      return
+    }
     if (file.size > 10 * 1024 * 1024) { toast('文件不能超过10MB', 'error'); return }
     setUploading(true)
     try {
@@ -1345,6 +1350,11 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
 
   return (
     <div className="space-y-3">
+      {!ssmId && (
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-xs text-amber-700">
+          ⚠️ 这个案件还没有关联 SSM 资料，文件无法上传。请先到「资料」Tab 补上 SSM 资料，再回来这里上传。
+        </div>
+      )}
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>

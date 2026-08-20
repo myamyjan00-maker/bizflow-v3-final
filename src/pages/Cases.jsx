@@ -183,6 +183,7 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
   const [error, setError] = useState('')
   const [ownerSearch, setOwnerSearch] = useState('')
   const [selectedOwner, setSelectedOwner] = useState(null)
+  const [icFile, setIcFile] = useState(null)
   const [form, setForm] = useState({
     agent_id: currentUser.role === 'agent' ? currentUser.id : '',
     owner_name: '', owner_ic: '', owner_mother_name: '', owner_phone: '', owner_email: '', owner_address: '',
@@ -232,6 +233,24 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
         case_id: cas.id, action: 'Case Created',
         note: `由 ${currentUser.display_name} 创建`, done_by: currentUser.id, done_by_name: currentUser.display_name,
       })
+      // 上传 IC 照片：文件目前是绑在 SSM 记录上的（不是案件本身），所以要有 ssmId 才能真正存进去、显示在文件 Tab
+      if (icFile) {
+        if (ssmId) {
+          try {
+            const ext = icFile.name.split('.').pop()
+            const path = `${ssmId}/${Date.now()}_IC_Owner.${ext}`
+            const { error: upErr } = await supabase.storage.from('ssm-files').upload(path, icFile)
+            if (upErr) throw upErr
+            const { data: { publicUrl } } = supabase.storage.from('ssm-files').getPublicUrl(path)
+            await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: 'IC (Owner)', file_name: icFile.name, file_url: publicUrl, uploaded_by: currentUser.id })
+            toast('案件已建立，IC 已上传')
+          } catch (upErr) {
+            toast('案件已建立，但 IC 上传失败：' + upErr.message, 'error')
+          }
+        } else {
+          toast('案件已建立，但因为还没填 SSM 资料，IC 暂时无法上传——请先补上 SSM 资料，再到案件的「文件」Tab 上传', 'warn')
+        }
+      }
       onSave()
     } catch (e) { setError(e.message); setLoading(false) }
   }
@@ -303,6 +322,13 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
                 <Field label="地址"><Inp value={form.owner_address} onChange={v => set('owner_address', v)} /></Field>
               </div>
             )}
+            <div className="pt-2 border-t border-slate-100">
+              <label className="block text-xs font-medium text-slate-600 mb-1">上传 Owner IC（可选）</label>
+              <input type="file" accept="image/*,.pdf" onChange={e => setIcFile(e.target.files[0] || null)}
+                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:text-xs" />
+              {icFile && <p className="text-xs text-slate-400 mt-1">已选择：{icFile.name}</p>}
+              <p className="text-[11px] text-amber-600 mt-1">💡 IC 要等这个案件有 SSM 资料才能真正上传，如果第 3 步没有填 SSM，请之后到案件的「文件」Tab 补传。</p>
+            </div>
           </div>
         )}
 
