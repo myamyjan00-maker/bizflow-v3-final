@@ -695,7 +695,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           }} />
       )}
       {showEditProfile && (
-        <EditProfileModal cas={cas} currentUser={currentUser}
+        <EditProfileModal cas={cas} currentUser={currentUser} toast={toast}
           onClose={() => setShowEditProfile(false)}
           onSave={() => { setShowEditProfile(false); loadAll(); toast('资料已更新') }} />
       )}
@@ -900,9 +900,10 @@ function AddNoteModal({ onClose, onSave }) {
   )
 }
 
-function EditProfileModal({ cas, onClose, onSave }) {
+function EditProfileModal({ cas, onClose, onSave, toast }) {
   const [ownerForm, setOwnerForm] = useState({ ...cas.owners })
-  const [ssmForm, setSsmForm] = useState({ ...cas.ssm })
+  const emptySSM = { ssm_name: '', reg_no: '', reg_date: '', exp_date: '', address: '', ezbiz_user_id: '', ezbiz_password: '', fee_ssm: 0, fee_contract: 0, fee_chop: 0 }
+  const [ssmForm, setSsmForm] = useState(cas.ssm_id ? { ...cas.ssm } : emptySSM)
   const [loading, setLoading] = useState(false)
   const setO = (k, v) => setOwnerForm(p => ({ ...p, [k]: v }))
   const setS = (k, v) => setSsmForm(p => ({ ...p, [k]: v }))
@@ -910,7 +911,17 @@ function EditProfileModal({ cas, onClose, onSave }) {
   const handleSave = async () => {
     setLoading(true)
     await supabase.from('owners').update({ ...ownerForm, updated_at: new Date() }).eq('id', cas.owner_id)
-    if (cas.ssm_id) await supabase.from('ssm').update({ ...ssmForm, updated_at: new Date() }).eq('id', cas.ssm_id)
+    if (cas.ssm_id) {
+      // 已经有 SSM 记录，直接更新
+      await supabase.from('ssm').update({ ...ssmForm, updated_at: new Date() }).eq('id', cas.ssm_id)
+    } else if (ssmForm.ssm_name) {
+      // 还没有 SSM 记录，而且这次有填公司名称 → 新建一笔，并且关联回这个案件
+      const { data: newSsm, error: ssmErr } = await supabase.from('ssm').insert({
+        ...ssmForm, owner_id: cas.owner_id, agent_id: cas.agent_id, status: 'New', updated_at: new Date(),
+      }).select().single()
+      if (ssmErr) { toast && toast('SSM 建立失败：' + ssmErr.message, 'error'); setLoading(false); return }
+      await supabase.from('cases').update({ ssm_id: newSsm.id, updated_at: new Date() }).eq('id', cas.id)
+    }
     setLoading(false); onSave()
   }
 
@@ -928,23 +939,26 @@ function EditProfileModal({ cas, onClose, onSave }) {
             <Field label="地址" span2><Inp value={ownerForm.address} onChange={v => setO('address', v)} /></Field>
           </div>
         </div>
-        {cas.ssm_id && (
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">🏢 SSM</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="公司名称" span2><Inp value={ssmForm.ssm_name} onChange={v => setS('ssm_name', v)} /></Field>
-              <Field label="注册号"><Inp value={ssmForm.reg_no} onChange={v => setS('reg_no', v)} /></Field>
-              <Field label="注册日期"><Inp type="date" value={ssmForm.reg_date} onChange={v => setS('reg_date', v)} /></Field>
-              <Field label="到期日期"><Inp type="date" value={ssmForm.exp_date} onChange={v => setS('exp_date', v)} /></Field>
-              <Field label="地址" span2><Inp value={ssmForm.address} onChange={v => setS('address', v)} /></Field>
-              <Field label="EZBIZ User ID"><Inp value={ssmForm.ezbiz_user_id} onChange={v => setS('ezbiz_user_id', v)} /></Field>
-              <Field label="EZBIZ Password"><Inp value={ssmForm.ezbiz_password} onChange={v => setS('ezbiz_password', v)} /></Field>
-              <Field label="SSM 注册费 (RM)"><Inp type="number" value={ssmForm.fee_ssm} onChange={v => setS('fee_ssm', v)} /></Field>
-              <Field label="合同费 (RM)"><Inp type="number" value={ssmForm.fee_contract} onChange={v => setS('fee_contract', v)} /></Field>
-              <Field label="做 Chop 费 (RM)"><Inp type="number" value={ssmForm.fee_chop} onChange={v => setS('fee_chop', v)} /></Field>
+        <div>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">🏢 SSM</p>
+          {!cas.ssm_id && (
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2.5 mb-3 text-xs text-amber-700">
+              ⚠️ 这个案件还没有 SSM 记录。填写「公司名称」并保存，会自动新建 SSM 资料并关联到这个案件——建立后，银行户口、押金、文件这几个功能才能正常使用。
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="公司名称" span2><Inp value={ssmForm.ssm_name} onChange={v => setS('ssm_name', v)} /></Field>
+            <Field label="注册号"><Inp value={ssmForm.reg_no} onChange={v => setS('reg_no', v)} /></Field>
+            <Field label="注册日期"><Inp type="date" value={ssmForm.reg_date} onChange={v => setS('reg_date', v)} /></Field>
+            <Field label="到期日期"><Inp type="date" value={ssmForm.exp_date} onChange={v => setS('exp_date', v)} /></Field>
+            <Field label="地址" span2><Inp value={ssmForm.address} onChange={v => setS('address', v)} /></Field>
+            <Field label="EZBIZ User ID"><Inp value={ssmForm.ezbiz_user_id} onChange={v => setS('ezbiz_user_id', v)} /></Field>
+            <Field label="EZBIZ Password"><Inp value={ssmForm.ezbiz_password} onChange={v => setS('ezbiz_password', v)} /></Field>
+            <Field label="SSM 注册费 (RM)"><Inp type="number" value={ssmForm.fee_ssm} onChange={v => setS('fee_ssm', v)} /></Field>
+            <Field label="合同费 (RM)"><Inp type="number" value={ssmForm.fee_contract} onChange={v => setS('fee_contract', v)} /></Field>
+            <Field label="做 Chop 费 (RM)"><Inp type="number" value={ssmForm.fee_chop} onChange={v => setS('fee_chop', v)} /></Field>
           </div>
-        )}
+        </div>
         <div className="flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
