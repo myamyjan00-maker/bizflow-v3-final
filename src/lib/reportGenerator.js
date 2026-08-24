@@ -139,3 +139,77 @@ export async function generateBankReport({ companyName, caseNo, ssm, owner, bank
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
+
+// PDF 版本：浏览器没办法直接把 Word 转成 PDF，用套件生成 PDF 又会遇到中文字型显示的问题，
+// 所以改用「打印预览」的方式——开一个排版好的网页分页，叫出浏览器的打印视窗，选「另存为 PDF」即可，
+// 这样中文显示最稳定可靠，不需要额外嵌入字型档。
+export function printBankReportPDF({ companyName, caseNo, ssm, owner, bank }) {
+  let securityQa = []
+  try {
+    securityQa = Array.isArray(bank.security_qa) ? bank.security_qa : JSON.parse(bank.security_qa || '[]')
+  } catch { securityQa = [] }
+  securityQa = securityQa.filter(qa => qa.q || qa.a)
+
+  const esc = (s) => (s === null || s === undefined || s === '') ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const rowHtml = (label, value) => {
+    if (value === null || value === undefined || value === '') return ''
+    return `<tr><td class="label">${esc(label)}</td><td class="value">${esc(value)}</td></tr>`
+  }
+  const sectionHtml = (title, rowsHtml, isSub) => {
+    const filled = rowsHtml.filter(Boolean).join('')
+    if (!filled) return ''
+    return `<h${isSub ? '4' : '2'}>${esc(title)}</h${isSub ? '4' : '2'}><table>${filled}</table>`
+  }
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${esc(companyName)} - ${esc(bank.bank_name)} 交接资料</title>
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; color: #1F2937; margin: 0; padding: 0; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .subtitle { font-size: 11px; color: #6B7280; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 6px; }
+  .warn { font-size: 10px; color: #92400E; font-style: italic; margin-bottom: 10px; }
+  h2 { font-size: 14px; border-bottom: 2px solid #0F6E56; padding-bottom: 4px; margin: 16px 0 6px; }
+  h4 { font-size: 11px; color: #0F6E56; margin: 10px 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  td { padding: 5px 8px 5px 0; border-bottom: 1px solid #E5E7EB; font-size: 11px; vertical-align: top; }
+  td.label { color: #6B7280; font-weight: bold; width: 28%; white-space: nowrap; }
+  td.value { color: #1F2937; }
+  .footer { text-align: center; font-size: 9px; color: #A3A3A3; margin-top: 24px; }
+  .footer img { width: 12px; height: 12px; vertical-align: middle; margin-right: 4px; }
+</style></head>
+<body onload="window.print()">
+  <h1>${esc(companyName) || '（未命名公司）'}</h1>
+  <div class="subtitle">${esc(caseNo)}　·　${esc(bank.bank_name)} 交接资料　·　${new Date().toLocaleDateString('en-MY')}</div>
+  <div class="warn">⚠ 本文件含银行登入密码与 ATM 密码等敏感资讯，请妥善保管，交接完成后建议删除。</div>
+
+  ${sectionHtml('公司资料 (SSM)', [
+    rowHtml('公司名称', ssm?.ssm_name), rowHtml('注册号', ssm?.reg_no), rowHtml('注册日期', ssm?.reg_date), rowHtml('公司地址', ssm?.address),
+  ])}
+  ${sectionHtml('Owner 资料', [
+    rowHtml('姓名', owner?.name), rowHtml('IC No.', owner?.ic), rowHtml('母亲姓名', owner?.mother_name),
+    rowHtml('电话', owner?.phone), rowHtml('Email', owner?.email), rowHtml('地址', owner?.address),
+  ])}
+  ${sectionHtml(`${bank.bank_name} 银行资料`, [
+    rowHtml('账号', bank.account_no), rowHtml('分行', bank.branch), rowHtml('开户日期', bank.open_date),
+    rowHtml('交接日期', bank.handover_date), rowHtml('COM ID', bank.com_id), rowHtml('状态', bank.status),
+  ])}
+  ${sectionHtml('网银登入资料', [
+    rowHtml('网银 User ID', bank.ob_user_id), rowHtml('网银密码', bank.ob_password), rowHtml('Corp ID', bank.corp_id),
+    rowHtml('Secure Plus Serial', bank.secure_plus_serial), rowHtml('Login ID', bank.login_id), rowHtml('Access ID', bank.access_id),
+  ], true)}
+  ${sectionHtml('ATM 卡资料', [rowHtml('ATM 卡号', bank.atm_card_no), rowHtml('ATM 密码', bank.atm_pin), rowHtml('TAC 手机号', bank.tac_phone)], true)}
+  ${securityQa.length > 0 ? sectionHtml('安全问题 (Security Questions)', securityQa.map((qa, i) => rowHtml(`问题 ${i + 1}`, `${qa.q}  →  答案：${qa.a}`))) : ''}
+
+  <div class="footer">
+    <img src="data:image/png;base64,${LOGO_BASE64}" alt="logo" />BizFlow MY
+  </div>
+</body></html>`
+
+  const win = window.open('', '_blank')
+  if (!win) { alert('弹出视窗被浏览器挡住了，请允许弹出视窗后再试一次'); return }
+  win.document.write(html)
+  win.document.close()
+}
