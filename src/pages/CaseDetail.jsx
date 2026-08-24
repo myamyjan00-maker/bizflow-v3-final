@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, PAYMENT_METHODS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
 import { CaseBadge, BankBadge, Modal, Field, Inp, Sel, InfoRow, Secret } from '../components/UI'
+import { generateBankReport } from '../lib/reportGenerator'
 
 const TABS = [
   { id: 'timeline', label: '⏱ 时间线' },
@@ -465,6 +466,10 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                     <div className="flex items-center gap-2">
                       <BankBadge status={b.status} />
                       {b.com_id && <span className="text-xs font-mono bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{b.com_id}</span>}
+                      {currentUser.role !== 'viewer' && currentUser.role !== 'agent' && (
+                        <button onClick={() => generateBankReport({ companyName: ssm?.ssm_name || owner?.name, caseNo: cas.case_no, ssm, owner, bank: b })}
+                          className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="下载这个银行的交接报告">📥 下载</button>
+                      )}
                       {currentUser.role !== 'viewer' && (
                         <button onClick={() => { setEditBank(b); setShowAddBank(true) }}
                           className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">编辑</button>
