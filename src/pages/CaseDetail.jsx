@@ -1012,7 +1012,9 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
     }
     setLoading(true)
     const cleanedQa = form.security_qa.filter(q => q.q || q.a)
-    const payload = { ...form, security_qa: cleanedQa, ssm_id: ssmId, owner_id: ownerId, updated_at: new Date() }
+    // COM ID 没填的话要存成 null，不能存空字串 ''——因为数据库设定了「COM ID 不能重复」，
+    // 如果好几笔都存空字串，会被当成「都一样、重复了」而保存失败
+    const payload = { ...form, com_id: form.com_id || null, security_qa: cleanedQa, ssm_id: ssmId, owner_id: ownerId, updated_at: new Date() }
     let saveError = null
     if (initial) {
       const { error } = await supabase.from('bank_accounts').update(payload).eq('id', initial.id)
@@ -1022,7 +1024,14 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
       saveError = error
     }
     setLoading(false)
-    if (saveError) { toast('保存失败：' + saveError.message, 'error'); return }
+    if (saveError) {
+      if (saveError.message.includes('bank_accounts_com_id_key')) {
+        toast('保存失败：这个 COM ID 已经被别的银行户口用过了，请换一个', 'error')
+      } else {
+        toast('保存失败：' + saveError.message, 'error')
+      }
+      return
+    }
     onSave()
   }
 
