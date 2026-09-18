@@ -59,7 +59,7 @@ export const DEPOSIT_RECOVERY_TARGETS = {
   both:     'Agent + 客户',
 }
 
-export const BANKS = ['RHB','Maybank','CIMB','Affin','Public Bank','Hong Leong','Bank Islam','Bank Muamalat']
+export const BANKS = ['RHB','Maybank','CIMB','Affin','Public Bank','Hong Leong','Bank Islam','Bank Muamalat','OCBC']
 
 export const BANK_STATUSES = ['New','Bank Processing','Ready','Completed','Blacklist']
 
