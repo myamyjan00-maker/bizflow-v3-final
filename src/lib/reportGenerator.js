@@ -121,7 +121,7 @@ export async function generateBankReport({ companyName, caseNo, ssm, owner, bank
         ]),
         ...section('网银登入资料', [
           row('网银 User ID', bank.ob_user_id), row('网银密码', bank.ob_password), row('Corp ID', bank.corp_id),
-          row('Secure Plus Serial', bank.secure_plus_serial), row('Login ID', bank.login_id), row('Access ID', bank.access_id),
+          row('Secure Plus Serial', bank.secure_plus_serial), row('Login ID', bank.login_id), row('Access ID', bank.access_id), row('Access Number', bank.access_number), row('Temporary Password', bank.temp_password),
         ], true),
         ...section('ATM 卡资料', [row('ATM 卡号', bank.atm_card_no), row('ATM 密码', bank.atm_pin), row('TAC 手机号', bank.tac_phone)], true),
         ...(securityQa.length > 0 ? section('安全问题 (Security Questions)', securityQa.map((qa, i) => row(`问题 ${i + 1}`, `${qa.q}  →  答案：${qa.a}`))) : []),
@@ -198,7 +198,7 @@ export function printBankReportPDF({ companyName, caseNo, ssm, owner, bank }) {
   ])}
   ${sectionHtml('网银登入资料', [
     rowHtml('网银 User ID', bank.ob_user_id), rowHtml('网银密码', bank.ob_password), rowHtml('Corp ID', bank.corp_id),
-    rowHtml('Secure Plus Serial', bank.secure_plus_serial), rowHtml('Login ID', bank.login_id), rowHtml('Access ID', bank.access_id),
+    rowHtml('Secure Plus Serial', bank.secure_plus_serial), rowHtml('Login ID', bank.login_id), rowHtml('Access ID', bank.access_id), rowHtml('Access Number', bank.access_number), rowHtml('Temporary Password', bank.temp_password),
   ], true)}
   ${sectionHtml('ATM 卡资料', [rowHtml('ATM 卡号', bank.atm_card_no), rowHtml('ATM 密码', bank.atm_pin), rowHtml('TAC 手机号', bank.tac_phone)], true)}
   ${securityQa.length > 0 ? sectionHtml('安全问题 (Security Questions)', securityQa.map((qa, i) => rowHtml(`问题 ${i + 1}`, `${qa.q}  →  答案：${qa.a}`))) : ''}

@@ -494,7 +494,8 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                         <InfoRow label="用户名" value={b.ob_user_id} />
                         <InfoRow label="密码" value={b.ob_password} secret />
                         {b.bank_name === 'RHB' && <><InfoRow label="Corporate ID" value={b.corp_id} /><InfoRow label="Secure Plus" value={b.secure_plus_serial} /></>}
-                        {b.bank_name === 'Maybank' && <><InfoRow label="Login ID" value={b.login_id} /><InfoRow label="Access ID" value={b.access_id} /></>}
+                        {b.bank_name === 'Maybank' && <><InfoRow label="Login ID" value={b.login_id} /><InfoRow label="Access ID" value={b.access_id} /><InfoRow label="Access Number" value={b.access_number} /></>}
+                        {b.bank_name === 'Affin' && <><InfoRow label="Corporate ID" value={b.corp_id} /><InfoRow label="Temporary Password" value={b.temp_password} secret /></>}
                       </>}
                       {(b.security_qa || []).filter(q => q.q).length > 0 && <>
                         <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wide py-2">🔒 安全问题</p>
@@ -978,7 +979,7 @@ function EditProfileModal({ cas, onClose, onSave, toast }) {
 }
 
 function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, toast }) {
-  const empty = { bank_name: 'RHB', account_no: '', com_id: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
+  const empty = { bank_name: 'RHB', account_no: '', com_id: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', access_number: '', temp_password: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
   const [form, setForm] = useState(initial ? { ...initial, security_qa: initial.security_qa?.filter(q => q.q) || [{ q: '', a: '' }] } : empty)
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -1058,7 +1059,8 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         <Field label="OB 用户名"><Inp value={form.ob_user_id} onChange={v => set('ob_user_id', v)} /></Field>
         <Field label="OB 密码"><Inp value={form.ob_password} onChange={v => set('ob_password', v)} /></Field>
         {form.bank_name === 'RHB' && <><Field label="Corporate ID"><Inp value={form.corp_id} onChange={v => set('corp_id', v)} /></Field><Field label="Secure Plus Serial"><Inp value={form.secure_plus_serial} onChange={v => set('secure_plus_serial', v)} /></Field></>}
-        {form.bank_name === 'Maybank' && <><Field label="Login ID"><Inp value={form.login_id} onChange={v => set('login_id', v)} /></Field><Field label="Access ID"><Inp value={form.access_id} onChange={v => set('access_id', v)} /></Field></>}
+        {form.bank_name === 'Maybank' && <><Field label="Login ID"><Inp value={form.login_id} onChange={v => set('login_id', v)} /></Field><Field label="Access ID"><Inp value={form.access_id} onChange={v => set('access_id', v)} /></Field><Field label="Access Number"><Inp value={form.access_number} onChange={v => set('access_number', v)} /></Field></>}
+        {form.bank_name === 'Affin' && <><Field label="Corporate ID"><Inp value={form.corp_id} onChange={v => set('corp_id', v)} /></Field><Field label="Temporary Password"><Inp value={form.temp_password} onChange={v => set('temp_password', v)} /></Field></>}
         <Field label="ATM 卡号"><Inp value={form.atm_card_no} onChange={v => set('atm_card_no', v)} /></Field>
         <Field label="ATM PIN"><Inp value={form.atm_pin} onChange={v => set('atm_pin', v)} /></Field>
         <Field label="TAC Phone"><Inp value={form.tac_phone} onChange={v => set('tac_phone', v)} /></Field>
