@@ -7,6 +7,7 @@ const TABS = [
   { id: 'pending',    label: '⏳ 未完成户口' },
   { id: 'missing',    label: '⚠️ 资料缺失' },
   { id: 'monthly',    label: '📅 月度报表' },
+  { id: 'recon',      label: '🧾 Agent 对账' },
   { id: 'accounts',   label: '💰 账户报表' },
 ]
 
@@ -30,6 +31,8 @@ export default function Reports({ currentUser, onNavigate }) {
   const [selectedAccount, setSelectedAccount] = useState('全部')
   const [expandedAgent, setExpandedAgent] = useState(null)
   const [expandedOwner, setExpandedOwner] = useState(null)
+  const [rate, setRate] = useState(800)
+  const [paidFilter, setPaidFilter] = useState('all') // all | unpaid | paid
 
   useEffect(() => { loadData() }, [])
 
@@ -254,6 +257,71 @@ export default function Reports({ currentUser, onNavigate }) {
     URL.revokeObjectURL(url)
   }
 
+  // ── Agent 对账（每个户口客户付 RM{rate} 给我）──────────────────────────────
+  const reconRows = useMemo(() => {
+    return banks.filter(b => {
+      // 已开出的户口：有账号，或状态已完成
+      if (!b.account_no && b.status !== 'Completed') return false
+      const cas = cases.find(c => c.ssm_id === b.ssm_id)
+      if (!cas || !cas.agent_id) return false
+      if (cas.termination_type) return false
+      const ag = getAgent(cas.agent_id)
+      if (agentFilter !== '全部' && ag?.display_name !== agentFilter) return false
+      if (filterMode !== 'all') {
+        const ds = b.open_date || b.handover_date
+        if (!ds) return false
+        const d = new Date(ds)
+        if (filterMode === 'month') {
+          const start = new Date(month + '-01')
+          const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+          if (d < start || d > end) return false
+        } else {
+          if (dateFrom && d < new Date(dateFrom)) return false
+          if (dateTo && d > new Date(dateTo)) return false
+        }
+      }
+      const paid = !!b.recon_paid
+      if (paidFilter === 'paid' && !paid) return false
+      if (paidFilter === 'unpaid' && paid) return false
+      return true
+    }).map(b => {
+      const cas = cases.find(c => c.ssm_id === b.ssm_id)
+      return { ...b, cas, ssm: getSSM(b.ssm_id), owner: getOwner(cas?.owner_id), agent: getAgent(cas?.agent_id), paid: !!b.recon_paid }
+    })
+  }, [banks, cases, ssms, owners, agents, month, dateFrom, dateTo, filterMode, agentFilter, paidFilter])
+
+  const reconByAgent = useMemo(() => {
+    const m = {}
+    reconRows.forEach(r => {
+      const k = r.agent?.display_name || '（未知）'
+      if (!m[k]) m[k] = { name: k, rows: [] }
+      m[k].rows.push(r)
+    })
+    return Object.values(m).sort((a, b) => a.name.localeCompare(b.name)).map(g => {
+      g.rows.sort((a, b) => (a.open_date || a.handover_date || '').localeCompare(b.open_date || b.handover_date || ''))
+      const paidCount = g.rows.filter(r => r.paid).length
+      return { ...g, count: g.rows.length, paidCount, total: g.rows.length * rate, paidAmt: paidCount * rate, unpaidAmt: (g.rows.length - paidCount) * rate }
+    })
+  }, [reconRows, rate])
+
+  const toggleReconPaid = async (b) => {
+    const next = !b.recon_paid
+    const { error } = await supabase.from('bank_accounts')
+      .update({ recon_paid: next, recon_paid_date: next ? new Date().toISOString().slice(0, 10) : null })
+      .eq('id', b.id)
+    if (error) { window.alert('保存失败：' + error.message + '（请确认已运行对账 SQL）'); return }
+    setBanks(prev => prev.map(x => x.id === b.id ? { ...x, recon_paid: next, recon_paid_date: next ? new Date().toISOString().slice(0, 10) : null } : x))
+  }
+
+  const downloadRecon = () => {
+    const rows = [['Agent', '公司名称', 'Owner', '银行', '账号', '开户日期', '金额(RM)', '已收款', '收款日期']]
+    reconByAgent.forEach(g => {
+      g.rows.forEach(r => rows.push([g.name, r.ssm?.ssm_name || '', r.owner?.name || '', r.bank_name, r.account_no || '', r.open_date || r.handover_date || '', rate.toFixed(2), r.paid ? '是' : '否', r.recon_paid_date || '']))
+      rows.push([g.name + ' 小计', '', '', '', '', g.count + ' 个户口', g.total.toFixed(2), '已收 ' + g.paidAmt.toFixed(2), '未收 ' + g.unpaidAmt.toFixed(2)])
+    })
+    downloadCSV(rows, 'agent_reconciliation.csv')
+  }
+
   const downloadAgentReport = () => {
     downloadCSV([
       ['Agent', '总案件', '总银行户口', '已完成', '未完成', '已终止', '总收费(RM)', '总成本(RM)', '净利润(RM)'],
@@ -286,7 +354,7 @@ export default function Reports({ currentUser, onNavigate }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 overflow-x-auto">
-        {TABS.filter(t => t.id !== 'accounts' || currentUser.role !== 'agent').map(t => (
+        {TABS.filter(t => !['accounts', 'recon'].includes(t.id) || currentUser.role !== 'agent').map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 px-3 text-xs rounded-lg font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
             {t.label}
@@ -309,7 +377,7 @@ export default function Reports({ currentUser, onNavigate }) {
             </div>
           </div>
         )}
-        {tab === 'monthly' && (
+        {(tab === 'monthly' || tab === 'recon') && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
             <div className="flex gap-2">
               <button onClick={() => setFilterMode('month')}
@@ -320,8 +388,14 @@ export default function Reports({ currentUser, onNavigate }) {
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'range' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 日期范围
               </button>
+              {tab === 'recon' && (
+                <button onClick={() => setFilterMode('all')}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterMode === 'all' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  全部
+                </button>
+              )}
             </div>
-            {filterMode === 'month' ? (
+            {filterMode === 'all' ? null : filterMode === 'month' ? (
               <input type="month" value={month} onChange={e => setMonth(e.target.value)}
                 className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
             ) : (
@@ -345,7 +419,9 @@ export default function Reports({ currentUser, onNavigate }) {
               </div>
             )}
             <p className="text-xs text-slate-400">
-              找到 <span className="font-bold text-teal-600">{monthlyBanks.length}</span> 笔交接记录
+              {tab === 'recon'
+                ? <>找到 <span className="font-bold text-teal-600">{reconRows.length}</span> 个户口</>
+                : <>找到 <span className="font-bold text-teal-600">{monthlyBanks.length}</span> 笔交接记录</>}
             </p>
           </div>
         )}
@@ -637,6 +713,84 @@ export default function Reports({ currentUser, onNavigate }) {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Agent 对账 ── */}
+      {tab === 'recon' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+            <span className="text-xs text-slate-500">每个户口：RM</span>
+            <input type="number" value={rate} onChange={e => setRate(Number(e.target.value) || 0)}
+              className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            <div className="flex gap-1">
+              {[['all', '全部'], ['unpaid', '未收'], ['paid', '已收']].map(([v, l]) => (
+                <button key={v} onClick={() => setPaidFilter(v)}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium ${paidFilter === v ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{l}</button>
+              ))}
+            </div>
+            <button onClick={downloadRecon} className="ml-auto px-3 py-1.5 text-xs rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold">📊 下载 Excel</button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              ['户口总数', reconRows.length, 'bg-teal-50 border-teal-100 text-teal-700'],
+              ['应收总额', 'RM ' + (reconRows.length * rate).toFixed(2), 'bg-purple-50 border-purple-100 text-purple-700'],
+              ['已收', 'RM ' + (reconRows.filter(r => r.paid).length * rate).toFixed(2), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
+              ['未收', 'RM ' + (reconRows.filter(r => !r.paid).length * rate).toFixed(2), 'bg-red-50 border-red-100 text-red-600'],
+            ].map(([label, val, cls]) => (
+              <div key={label} className={`rounded-2xl border p-4 ${cls}`}>
+                <p className="text-xs font-medium opacity-70">{label}</p>
+                <p className="text-xl font-black mt-1">{val}</p>
+              </div>
+            ))}
+          </div>
+
+          {reconByAgent.map(g => (
+            <div key={g.name} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">👤 {g.name} <span className="text-xs font-normal text-slate-400">· {g.count} 个户口</span></h3>
+                <div className="text-xs flex gap-3">
+                  <span className="text-slate-600">应收 <b>RM {g.total.toFixed(2)}</b></span>
+                  <span className="text-emerald-600">已收 RM {g.paidAmt.toFixed(2)}</span>
+                  <span className="text-red-600">未收 <b>RM {g.unpaidAmt.toFixed(2)}</b></span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      {['公司名称', 'Owner', '银行', '账号', '开户日期', '金额', '已收款', ''].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {g.rows.map(r => (
+                      <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 max-w-[160px] truncate">{r.ssm?.ssm_name || '—'}</td>
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[110px] truncate">{r.owner?.name || '—'}</td>
+                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.bank_name}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{r.account_no || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500">{fmt(r.open_date || r.handover_date)}</td>
+                        <td className="px-3 py-2 text-xs">RM {rate.toFixed(2)}</td>
+                        <td className="px-3 py-2">
+                          {currentUser.role === 'viewer'
+                            ? <span className="text-xs">{r.paid ? '✅' : '—'}</span>
+                            : <input type="checkbox" checked={r.paid} onChange={() => toggleReconPaid(r)} className="w-4 h-4 accent-teal-600" />}
+                          {r.paid && r.recon_paid_date && <span className="ml-1 text-xs text-slate-400">{fmt(r.recon_paid_date)}</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          {r.cas && <button onClick={() => onNavigate('case', r.cas.id)} className="px-2 py-1 text-xs rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">查看</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          {reconByAgent.length === 0 && <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-8 text-center text-slate-400 text-sm">这个范围内没有已开户的户口</div>}
         </div>
       )}
 
