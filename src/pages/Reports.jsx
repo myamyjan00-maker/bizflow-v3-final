@@ -31,14 +31,15 @@ export default function Reports({ currentUser, onNavigate }) {
   const [selectedAccount, setSelectedAccount] = useState('全部')
   const [expandedAgent, setExpandedAgent] = useState(null)
   const [expandedOwner, setExpandedOwner] = useState(null)
-  const [rate, setRate] = useState(800)
+  const [rates, setRates] = useState({}) // agent_id -> 每个户口单价
+  const rateOf = id => (rates[id] ?? 800)
   const [paidFilter, setPaidFilter] = useState('all') // all | unpaid | paid
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }, { data: dep }] = await Promise.all([
+    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }, { data: dep }, { data: rt }] = await Promise.all([
       supabase.from('cases').select('*').order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('owners').select('id,name,ic,phone,email,address'),
@@ -51,6 +52,7 @@ export default function Reports({ currentUser, onNavigate }) {
       supabase.from('company_accounts').select('*').order('name'),
       supabase.from('account_transactions').select('*, company_accounts(name), cases(case_no)').order('date', { ascending: false }),
       supabase.from('deposits').select('account_id, bank_charge, company_accounts!account_id(name)'),
+      supabase.from('agent_rates').select('agent_id, rate'),
     ])
     setCases(currentUser.role === 'agent' ? (c || []).filter(x => x.agent_id === currentUser.id) : (c || []))
     setBanks(b || [])
@@ -61,6 +63,7 @@ export default function Reports({ currentUser, onNavigate }) {
     setCompanyAccounts(ca || [])
     setTransactions(tx || [])
     setDeposits(dep || [])
+    setRates(Object.fromEntries((rt || []).map(r => [r.agent_id, Number(r.rate)])))
     setLoading(false)
   }
 
@@ -260,7 +263,7 @@ export default function Reports({ currentUser, onNavigate }) {
   // ── Agent 对账（每个户口客户付 RM{rate} 给我）──────────────────────────────
   const reconRows = useMemo(() => {
     return banks.filter(b => {
-      // 已开出的户口：有账号，或状态已完成
+      // 已开出的户口：有账号，或状态已完成；按出户（开户）日期算
       if (!b.account_no && b.status !== 'Completed') return false
       const cas = cases.find(c => c.ssm_id === b.ssm_id)
       if (!cas || !cas.agent_id) return false
@@ -268,9 +271,8 @@ export default function Reports({ currentUser, onNavigate }) {
       const ag = getAgent(cas.agent_id)
       if (agentFilter !== '全部' && ag?.display_name !== agentFilter) return false
       if (filterMode !== 'all') {
-        const ds = b.open_date || b.handover_date
-        if (!ds) return false
-        const d = new Date(ds)
+        if (!b.open_date) return false
+        const d = new Date(b.open_date)
         if (filterMode === 'month') {
           const start = new Date(month + '-01')
           const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
@@ -286,7 +288,7 @@ export default function Reports({ currentUser, onNavigate }) {
       return true
     }).map(b => {
       const cas = cases.find(c => c.ssm_id === b.ssm_id)
-      return { ...b, cas, ssm: getSSM(b.ssm_id), owner: getOwner(cas?.owner_id), agent: getAgent(cas?.agent_id), paid: !!b.recon_paid }
+      return { ...b, cas, ssm: getSSM(b.ssm_id), owner: getOwner(cas?.owner_id), agent: getAgent(cas?.agent_id), paid: !!b.recon_paid, rate: rateOf(cas?.agent_id) }
     })
   }, [banks, cases, ssms, owners, agents, month, dateFrom, dateTo, filterMode, agentFilter, paidFilter])
 
@@ -294,15 +296,15 @@ export default function Reports({ currentUser, onNavigate }) {
     const m = {}
     reconRows.forEach(r => {
       const k = r.agent?.display_name || '（未知）'
-      if (!m[k]) m[k] = { name: k, rows: [] }
+      if (!m[k]) m[k] = { name: k, agentId: r.agent?.id, rate: r.rate, rows: [] }
       m[k].rows.push(r)
     })
     return Object.values(m).sort((a, b) => a.name.localeCompare(b.name)).map(g => {
-      g.rows.sort((a, b) => (a.open_date || a.handover_date || '').localeCompare(b.open_date || b.handover_date || ''))
+      g.rows.sort((a, b) => (a.open_date || '').localeCompare(b.open_date || ''))
       const paidCount = g.rows.filter(r => r.paid).length
-      return { ...g, count: g.rows.length, paidCount, total: g.rows.length * rate, paidAmt: paidCount * rate, unpaidAmt: (g.rows.length - paidCount) * rate }
+      return { ...g, count: g.rows.length, paidCount, total: g.rows.length * g.rate, paidAmt: paidCount * g.rate, unpaidAmt: (g.rows.length - paidCount) * g.rate }
     })
-  }, [reconRows, rate])
+  }, [reconRows, rates])
 
   const toggleReconPaid = async (b) => {
     const next = !b.recon_paid
@@ -313,10 +315,17 @@ export default function Reports({ currentUser, onNavigate }) {
     setBanks(prev => prev.map(x => x.id === b.id ? { ...x, recon_paid: next, recon_paid_date: next ? new Date().toISOString().slice(0, 10) : null } : x))
   }
 
+  const saveRate = async (agentId, val) => {
+    const v = Number(val) || 0
+    setRates(prev => ({ ...prev, [agentId]: v }))
+    const { error } = await supabase.from('agent_rates').upsert({ agent_id: agentId, rate: v })
+    if (error) window.alert('单价保存失败：' + error.message + '（请确认已运行对账 SQL）')
+  }
+
   const downloadRecon = () => {
-    const rows = [['Agent', '公司名称', 'Owner', '银行', '账号', '开户日期', '金额(RM)', '已收款', '收款日期']]
+    const rows = [['Agent', '公司名称', 'Owner', '银行', '账号', '出户日期', '金额(RM)', '已收款', '收款日期']]
     reconByAgent.forEach(g => {
-      g.rows.forEach(r => rows.push([g.name, r.ssm?.ssm_name || '', r.owner?.name || '', r.bank_name, r.account_no || '', r.open_date || r.handover_date || '', rate.toFixed(2), r.paid ? '是' : '否', r.recon_paid_date || '']))
+      g.rows.forEach(r => rows.push([g.name, r.ssm?.ssm_name || '', r.owner?.name || '', r.bank_name, r.account_no || '', r.open_date || '', r.rate.toFixed(2), r.paid ? '是' : '否', r.recon_paid_date || '']))
       rows.push([g.name + ' 小计', '', '', '', '', g.count + ' 个户口', g.total.toFixed(2), '已收 ' + g.paidAmt.toFixed(2), '未收 ' + g.unpaidAmt.toFixed(2)])
     })
     downloadCSV(rows, 'agent_reconciliation.csv')
@@ -720,9 +729,7 @@ export default function Reports({ currentUser, onNavigate }) {
       {tab === 'recon' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-            <span className="text-xs text-slate-500">每个户口：RM</span>
-            <input type="number" value={rate} onChange={e => setRate(Number(e.target.value) || 0)}
-              className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            <span className="text-xs text-slate-500">单价按 Agent 设置（默认 RM800，在各 Agent 标题处修改）</span>
             <div className="flex gap-1">
               {[['all', '全部'], ['unpaid', '未收'], ['paid', '已收']].map(([v, l]) => (
                 <button key={v} onClick={() => setPaidFilter(v)}
@@ -735,9 +742,9 @@ export default function Reports({ currentUser, onNavigate }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               ['户口总数', reconRows.length, 'bg-teal-50 border-teal-100 text-teal-700'],
-              ['应收总额', 'RM ' + (reconRows.length * rate).toFixed(2), 'bg-purple-50 border-purple-100 text-purple-700'],
-              ['已收', 'RM ' + (reconRows.filter(r => r.paid).length * rate).toFixed(2), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
-              ['未收', 'RM ' + (reconRows.filter(r => !r.paid).length * rate).toFixed(2), 'bg-red-50 border-red-100 text-red-600'],
+              ['应收总额', 'RM ' + reconRows.reduce((s, r) => s + r.rate, 0).toFixed(2), 'bg-purple-50 border-purple-100 text-purple-700'],
+              ['已收', 'RM ' + reconRows.filter(r => r.paid).reduce((s, r) => s + r.rate, 0).toFixed(2), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
+              ['未收', 'RM ' + reconRows.filter(r => !r.paid).reduce((s, r) => s + r.rate, 0).toFixed(2), 'bg-red-50 border-red-100 text-red-600'],
             ].map(([label, val, cls]) => (
               <div key={label} className={`rounded-2xl border p-4 ${cls}`}>
                 <p className="text-xs font-medium opacity-70">{label}</p>
@@ -749,7 +756,11 @@ export default function Reports({ currentUser, onNavigate }) {
           {reconByAgent.map(g => (
             <div key={g.name} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">👤 {g.name} <span className="text-xs font-normal text-slate-400">· {g.count} 个户口</span></h3>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">👤 {g.name} <span className="text-xs font-normal text-slate-400">· {g.count} 个户口 · 单价 RM</span>
+                  {g.agentId && currentUser.role !== 'viewer'
+                    ? <input type="number" defaultValue={g.rate} onBlur={e => saveRate(g.agentId, e.target.value)} className="ml-1 w-20 px-2 py-0.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+                    : <span className="ml-1 text-xs">{g.rate}</span>}
+                </h3>
                 <div className="text-xs flex gap-3">
                   <span className="text-slate-600">应收 <b>RM {g.total.toFixed(2)}</b></span>
                   <span className="text-emerald-600">已收 RM {g.paidAmt.toFixed(2)}</span>
@@ -760,7 +771,7 @@ export default function Reports({ currentUser, onNavigate }) {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
-                      {['公司名称', 'Owner', '银行', '账号', '开户日期', '金额', '已收款', ''].map(h => (
+                      {['公司名称', 'Owner', '银行', '账号', '出户日期', '金额', '已收款', ''].map(h => (
                         <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -772,8 +783,8 @@ export default function Reports({ currentUser, onNavigate }) {
                         <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[110px] truncate">{r.owner?.name || '—'}</td>
                         <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.bank_name}</td>
                         <td className="px-3 py-2 font-mono text-xs text-slate-500">{r.account_no || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-slate-500">{fmt(r.open_date || r.handover_date)}</td>
-                        <td className="px-3 py-2 text-xs">RM {rate.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500">{fmt(r.open_date)}</td>
+                        <td className="px-3 py-2 text-xs">RM {r.rate.toFixed(2)}</td>
                         <td className="px-3 py-2">
                           {currentUser.role === 'viewer'
                             ? <span className="text-xs">{r.paid ? '✅' : '—'}</span>
