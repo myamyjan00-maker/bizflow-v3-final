@@ -264,13 +264,16 @@ export default function Finance({ currentUser, onNavigate, toast }) {
 }
 
 function AdjustModal({ account, onClose, onSave }) {
-  const [balance, setBalance] = useState(String(account.balance))
+  const [delta, setDelta] = useState('')
+  const cur = Number(account.balance) || 0
+  const balance = delta === '' || delta === '-' ? '' : String(Math.round((cur + Number(delta)) * 100) / 100)
   const [note, setNote] = useState('')
   const [transferAmt, setTransferAmt] = useState(0)
   const [cashAmt, setCashAmt] = useState(0)
-  const diff = balance ? Math.abs(Number(balance) - Number(account.balance)) : 0
+  const diff = Math.abs(Number(delta) || 0)
   const splitTotal = (Number(transferAmt) || 0) + (Number(cashAmt) || 0)
-  const splitMismatch = diff > 0 && splitTotal !== diff
+  // 转账和现金都没填 = 默认全部是转账；有填才检查是否跟变动金额一致
+  const splitMismatch = diff > 0 && splitTotal > 0 && Math.abs(splitTotal - diff) > 0.005
   return (
     <Modal title={`调整 ${account.name} 余额`} onClose={onClose}>
       <div className="space-y-3">
@@ -278,10 +281,10 @@ function AdjustModal({ account, onClose, onSave }) {
           <p className="text-xs text-slate-400">当前余额</p>
           <p className="text-xl font-black text-slate-800 dark:text-slate-100">RM {Number(account.balance).toFixed(2)}</p>
         </div>
-        <Field label="新余额 (RM)"><Inp type="number" value={balance} onChange={setBalance} /></Field>
-        {balance && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${Number(balance) >= Number(account.balance) ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-            变动：{Number(balance) >= Number(account.balance) ? '+' : ''}RM {(Number(balance) - Number(account.balance)).toFixed(2)}
+        <Field label="变动金额 (RM)　入账填正数，出账填负数，例如 -350"><Inp type="number" value={delta} onChange={setDelta} placeholder="-350" /></Field>
+        {balance !== '' && Number(delta) !== 0 && (
+          <div className={`text-xs px-3 py-2 rounded-lg ${Number(delta) >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+            变动：{Number(delta) >= 0 ? '+' : ''}RM {Number(delta).toFixed(2)}　→　更新后余额 RM {Number(balance).toFixed(2)}
           </div>
         )}
         <Field label="这笔变动的付款方式（可拆分）">
@@ -298,14 +301,14 @@ function AdjustModal({ account, onClose, onSave }) {
           {diff > 0 && (
             <p className={`text-xs mt-1.5 ${splitMismatch ? 'text-red-500' : 'text-slate-400'}`}>
               转账 + 现金 = RM {splitTotal.toFixed(2)}
-              {splitMismatch ? `　⚠️ 跟变动金额 (RM ${diff.toFixed(2)}) 对不上` : '　✓ 一致'}
+              {splitTotal === 0 ? '　（不填 = 全部算转账）' : splitMismatch ? `　⚠️ 跟变动金额 (RM ${diff.toFixed(2)}) 对不上` : '　✓ 一致'}
             </p>
           )}
         </Field>
         <Field label="备注"><Inp value={note} onChange={setNote} placeholder="调整原因..." /></Field>
         <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
-          <button onClick={() => onSave(account.id, balance, note, transferAmt, cashAmt)} disabled={!balance || splitMismatch}
+          <button onClick={() => onSave(account.id, balance, note, splitTotal === 0 ? diff : transferAmt, splitTotal === 0 ? 0 : cashAmt)} disabled={balance === '' || !Number(delta) || splitMismatch}
             className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">确认更新</button>
         </div>
       </div>
