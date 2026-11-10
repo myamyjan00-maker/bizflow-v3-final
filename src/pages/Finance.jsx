@@ -9,6 +9,9 @@ export default function Finance({ currentUser, onNavigate, toast }) {
   const [deposits, setDeposits] = useState([])
   const [cases, setCases] = useState([])
   const [ssmNames, setSsmNames] = useState({})
+  const [allDeposits, setAllDeposits] = useState([])
+  const [bcAccount, setBcAccount] = useState('全部')
+  const [bcMonth, setBcMonth] = useState('全部')
   const [loading, setLoading] = useState(true)
   const [showAdjust, setShowAdjust] = useState(null)
   const [showTxn, setShowTxn] = useState(false)
@@ -17,17 +20,19 @@ export default function Finance({ currentUser, onNavigate, toast }) {
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: a }, { data: t }, { data: d }, { data: cs }, { data: sm }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: d }, { data: cs }, { data: sm }, { data: ad }] = await Promise.all([
       supabase.from('company_accounts').select('*').order('name'),
       supabase.from('account_transactions').select('*, company_accounts!account_id(name), cases(case_no), bank_accounts(bank_name,account_no,ssm_id)').order('created_at', { ascending: false }).limit(50),
       supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), ssm(ssm_name), company_accounts!account_id(name)').eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('cases').select('id, ssm_id'),
       supabase.from('ssm').select('id, ssm_name'),
+      supabase.from('deposits').select('id, amount, bank_charge, returned_amount, status, transfer_date, created_at, account_id, bank_accounts(bank_name,account_no,ssm_id), company_accounts!account_id(name)').order('created_at', { ascending: false }),
     ])
     setAccounts(a || [])
     setTransactions(t || [])
     setDeposits(d || [])
     setCases(cs || [])
+    setAllDeposits(ad || [])
     setSsmNames(Object.fromEntries((sm || []).map(x => [x.id, x.ssm_name])))
     setLoading(false)
   }
@@ -57,6 +62,25 @@ export default function Finance({ currentUser, onNavigate, toast }) {
   }
   const totalBalance = accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0)
   const totalOutstanding = deposits.reduce((s, d) => s + ((Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)), 0)
+
+  // ── Bank Charge 汇总（按账户 / 月份筛选）──
+  const depDate = d => (d.transfer_date || d.created_at || '').slice(0, 10)
+  const bcMonths = [...new Set(allDeposits.map(d => depDate(d).slice(0, 7)).filter(Boolean))].sort().reverse()
+  const bcRows = allDeposits.filter(d => {
+    if (!(Number(d.bank_charge) > 0)) return false
+    if (bcAccount !== '全部' && d.company_accounts?.name !== bcAccount) return false
+    if (bcMonth !== '全部' && depDate(d).slice(0, 7) !== bcMonth) return false
+    return true
+  })
+  const bcTotal = bcRows.reduce((s, d) => s + Number(d.bank_charge), 0)
+  const bcAll = allDeposits.reduce((s, d) => s + (Number(d.bank_charge) || 0), 0)
+  // 对账检查：总出款 = 已回款 + bank charge + 待回
+  const chkOut = allDeposits.reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  const chkReturned = allDeposits.reduce((s, d) => s + getReturnedAmount(d), 0)
+  const chkPending = allDeposits.reduce((s, d) => s + Math.max(0, (Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)), 0)
+  const chkDiff = chkOut - chkReturned - bcAll - chkPending
+  const caseOfSsm = ssmId => cases.find(c => c.ssm_id === ssmId)
+  const money = n => Number(n).toLocaleString('en-MY', { minimumFractionDigits: 2 })
 
   const txnTypeLabels = {
     deposit_out: { label: 'Deposit 出款', color: 'text-red-600', sign: '-' },
@@ -114,6 +138,10 @@ export default function Finance({ currentUser, onNavigate, toast }) {
             </p>
             <p className="text-xs text-slate-400 mt-0.5">{deposits.length} 笔未回款</p>
           </div>
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+            <p className="text-xs text-slate-400 font-medium">Bank Charge 总计</p>
+            <p className="text-2xl font-black text-red-500">RM {money(bcAll)}</p>
+          </div>
         </div>
       </div>
 
@@ -147,6 +175,44 @@ export default function Finance({ currentUser, onNavigate, toast }) {
           </div>
         </div>
       )}
+
+      {/* Bank Charge 明细 */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">💳 Bank Charge 明细</h3>
+            <p className="text-sm font-black text-red-500">合计 RM {money(bcTotal)} <span className="text-xs font-normal text-slate-400">· {bcRows.length} 笔</span></p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select value={bcAccount} onChange={e => setBcAccount(e.target.value)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              {['全部', ...accounts.map(a => a.name)].map(n => <option key={n} value={n}>{n === '全部' ? '全部账户' : n}</option>)}
+            </select>
+            <select value={bcMonth} onChange={e => setBcMonth(e.target.value)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              {['全部', ...bcMonths].map(m => <option key={m} value={m}>{m === '全部' ? '全部月份' : m}</option>)}
+            </select>
+          </div>
+          <div className={`text-xs rounded-lg px-3 py-2 ${Math.abs(chkDiff) < 0.005 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            对账检查：总出款 RM {money(chkOut)} = 已回款 RM {money(chkReturned)} + Bank Charge RM {money(bcAll)} + 待回 RM {money(chkPending)}
+            {Math.abs(chkDiff) < 0.005 ? ' ✅ 对得上' : ` ⚠️ 相差 RM ${money(chkDiff)}`}
+          </div>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {bcRows.map(d => {
+            const cs = caseOfSsm(d.bank_accounts?.ssm_id)
+            const inner = (
+              <div className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{ssmNames[d.bank_accounts?.ssm_id] || '（未命名公司）'}</p>
+                  <p className="text-xs text-slate-400">{d.bank_accounts?.bank_name} · {d.bank_accounts?.account_no || '—'} · {d.company_accounts?.name} · {fmt(depDate(d))} · 出款 RM {money(d.amount)}</p>
+                </div>
+                <p className="text-sm font-bold text-red-500 flex-shrink-0">RM {money(d.bank_charge)}</p>
+              </div>
+            )
+            return cs ? <button key={d.id} onClick={() => onNavigate('case', cs.id)} className="w-full text-left">{inner}</button> : <div key={d.id}>{inner}</div>
+          })}
+          {bcRows.length === 0 && <div className="px-5 py-6 text-center text-slate-400 text-sm">这个范围内没有 Bank Charge</div>}
+        </div>
+      </div>
 
       {/* Transaction history */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
