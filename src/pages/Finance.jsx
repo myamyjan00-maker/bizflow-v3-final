@@ -8,6 +8,7 @@ export default function Finance({ currentUser, onNavigate, toast }) {
   const [transactions, setTransactions] = useState([])
   const [deposits, setDeposits] = useState([])
   const [cases, setCases] = useState([])
+  const [ssmNames, setSsmNames] = useState({})
   const [loading, setLoading] = useState(true)
   const [showAdjust, setShowAdjust] = useState(null)
   const [showTxn, setShowTxn] = useState(false)
@@ -16,16 +17,18 @@ export default function Finance({ currentUser, onNavigate, toast }) {
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: a }, { data: t }, { data: d }, { data: cs }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: d }, { data: cs }, { data: sm }] = await Promise.all([
       supabase.from('company_accounts').select('*').order('name'),
-      supabase.from('account_transactions').select('*, company_accounts!account_id(name), cases(case_no), bank_accounts(bank_name,account_no)').order('created_at', { ascending: false }).limit(50),
+      supabase.from('account_transactions').select('*, company_accounts!account_id(name), cases(case_no), bank_accounts(bank_name,account_no,ssm_id)').order('created_at', { ascending: false }).limit(50),
       supabase.from('deposits').select('*, bank_accounts(bank_name,account_no), ssm(ssm_name), company_accounts!account_id(name)').eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('cases').select('id, ssm_id'),
+      supabase.from('ssm').select('id, ssm_name'),
     ])
     setAccounts(a || [])
     setTransactions(t || [])
     setDeposits(d || [])
     setCases(cs || [])
+    setSsmNames(Object.fromEntries((sm || []).map(x => [x.id, x.ssm_name])))
     setLoading(false)
   }
 
@@ -165,6 +168,12 @@ export default function Finance({ currentUser, onNavigate, toast }) {
                     ) : null}
                     {t.cases?.case_no && <span className="text-[10px] bg-teal-50 dark:bg-teal-950 text-teal-600 px-1.5 py-0.5 rounded-full font-mono">{t.cases.case_no} {t.case_id && '→'}</span>}
                   </div>
+                  {(t.bank_accounts || t.cases) && (
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5 truncate">
+                      {ssmNames[t.bank_accounts?.ssm_id] || '（未命名公司）'}
+                      {t.bank_accounts?.bank_name && <span className="ml-2 text-xs font-medium text-teal-600">🏦 {t.bank_accounts.bank_name}{t.bank_accounts.account_no ? ' · ' + t.bank_accounts.account_no : ''}</span>}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-400 mt-0.5">{t.company_accounts?.name} · {fmt(t.created_at)} {t.note && `· ${t.note}`}</p>
                 </div>
                 <p className={`text-sm font-bold flex-shrink-0 ${info.color}`}>
