@@ -10,6 +10,9 @@ export default function Finance({ currentUser, onNavigate, toast }) {
   const [cases, setCases] = useState([])
   const [ssmNames, setSsmNames] = useState({})
   const [allDeposits, setAllDeposits] = useState([])
+  const [open, setOpen] = useState({ pending: false, bc: false, txn: false })
+  const tg = k => setOpen(o => ({ ...o, [k]: !o[k] }))
+  const arrow = k => <span className={`text-slate-400 text-xs transition-transform inline-block ${open[k] ? 'rotate-90' : ''}`}>▶</span>
   const [bcAccount, setBcAccount] = useState('全部')
   const [bcMonth, setBcMonth] = useState('全部')
   const [loading, setLoading] = useState(true)
@@ -148,10 +151,11 @@ export default function Finance({ currentUser, onNavigate, toast }) {
       {/* Outstanding deposits */}
       {deposits.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <button onClick={() => tg('pending')} className={`w-full text-left px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 ${open.pending ? 'border-b border-slate-200 dark:border-slate-700' : ''}`}>
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">⏳ 待回 Deposit ({deposits.length})</h3>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {arrow('pending')}
+          </button>
+          <div className={`divide-y divide-slate-100 dark:divide-slate-800 ${open.pending ? '' : 'hidden'}`}>
             {deposits.map(d => {
               const outstanding = (Number(d.amount) || 0) - (Number(d.bank_charge) || 0) - getReturnedAmount(d)
               const days = d.transfer_date ? Math.floor((Date.now() - new Date(d.transfer_date).getTime()) / 86400000) : null
@@ -178,11 +182,14 @@ export default function Finance({ currentUser, onNavigate, toast }) {
 
       {/* Bank Charge 明细 */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">💳 Bank Charge 明细</h3>
-            <p className="text-sm font-black text-red-500">合计 RM {money(bcTotal)} <span className="text-xs font-normal text-slate-400">· {bcRows.length} 笔</span></p>
-          </div>
+        <button onClick={() => tg('bc')} className="w-full text-left px-5 py-4 flex items-center justify-between flex-wrap gap-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">💳 Bank Charge 明细</h3>
+          <span className="flex items-center gap-3">
+            <span className="text-sm font-black text-red-500">合计 RM {money(bcTotal)} <span className="text-xs font-normal text-slate-400">· {bcRows.length} 笔</span></span>
+            {arrow('bc')}
+          </span>
+        </button>
+        <div className={`px-5 pb-4 border-b border-slate-200 dark:border-slate-700 space-y-3 ${open.bc ? '' : 'hidden'}`}>
           <div className="flex gap-2 flex-wrap">
             <select value={bcAccount} onChange={e => setBcAccount(e.target.value)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               {['全部', ...accounts.map(a => a.name)].map(n => <option key={n} value={n}>{n === '全部' ? '全部账户' : n}</option>)}
@@ -196,7 +203,7 @@ export default function Finance({ currentUser, onNavigate, toast }) {
             {Math.abs(chkDiff) < 0.005 ? ' ✅ 对得上' : ` ⚠️ 相差 RM ${money(chkDiff)}`}
           </div>
         </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div className={`divide-y divide-slate-100 dark:divide-slate-800 ${open.bc ? '' : 'hidden'}`}>
           {bcRows.map(d => {
             const cs = caseOfSsm(d.bank_accounts?.ssm_id)
             const inner = (
@@ -216,10 +223,11 @@ export default function Finance({ currentUser, onNavigate, toast }) {
 
       {/* Transaction history */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <button onClick={() => tg('txn')} className={`w-full text-left px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 ${open.txn ? 'border-b border-slate-200 dark:border-slate-700' : ''}`}>
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📋 流水记录（最近50笔）</h3>
-        </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {arrow('txn')}
+        </button>
+        <div className={`divide-y divide-slate-100 dark:divide-slate-800 ${open.txn ? '' : 'hidden'}`}>
           {transactions.map(t => {
             const info = txnTypeLabels[t.type] || { label: t.type, color: 'text-slate-600', sign: '' }
             const content = (
