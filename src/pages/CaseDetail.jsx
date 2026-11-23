@@ -38,6 +38,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   const [showAddReturn, setShowAddReturn] = useState(false)
   const [activeReturnDeposit, setActiveReturnDeposit] = useState(null)
   const [showAddCost, setShowAddCost] = useState(false)
+  const [editCost, setEditCost] = useState(null)
   const [editBank, setEditBank] = useState(null)
   const [editDeposit, setEditDeposit] = useState(null)
 
@@ -669,6 +670,18 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                         {c.note && <p className="text-xs text-slate-400">{c.note}</p>}
                       </div>
                       <span className="text-sm font-bold text-red-600">RM {Number(c.amount).toFixed(2)}</span>
+                      {['super_admin', 'admin'].includes(currentUser.role) && (
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => setEditCost(c)} className="px-2 py-1 text-xs rounded-lg bg-white text-slate-600 hover:bg-slate-100 border border-slate-200">编辑</button>
+                          <button onClick={async () => {
+                            if (!window.confirm(`确定删除这笔费用？\n${cat?.label || c.category} RM ${Number(c.amount).toFixed(2)}\n（它的 Claim 收回记录也会一起删除）`)) return
+                            const { error } = await supabase.from('case_costs').delete().eq('id', c.id)
+                            if (error) { toast('删除失败：' + error.message, 'error'); return }
+                            await logTimeline('删除费用', `${cat?.label || c.category} RM${Number(c.amount).toFixed(2)}`)
+                            toast('已删除'); loadAll()
+                          }} className="px-2 py-1 text-xs rounded-lg bg-red-50 text-red-500 hover:bg-red-100">删</button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -745,6 +758,15 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
             setShowAddCost(false); loadAll()
             await logTimeline('新增费用', `${cat} RM${amount}${note ? ' - ' + note : ''}`)
             toast('费用已记录')
+          }} />
+      )}
+      {editCost && (
+        <CostFormModal caseId={caseId} currentUser={currentUser} banks={banks} cost={editCost}
+          onClose={() => setEditCost(null)}
+          onSave={async (cat, amount, note) => {
+            setEditCost(null); loadAll()
+            await logTimeline('修改费用', `${cat} RM${amount}${note ? ' - ' + note : ''}`)
+            toast('费用已更新')
           }} />
       )}
     </div>
@@ -1310,16 +1332,17 @@ const CLAIM_TYPE_OPTIONS = [
   { value: 'payer', label: '要还给垫付的人（我要还别人）' },
 ]
 
-function CostFormModal({ caseId, currentUser, banks = [], onClose, onSave }) {
-  const [bankName, setBankName] = useState('')
-  const [paidBy, setPaidBy] = useState('我自己')
-  const [claimType, setClaimType] = useState('none')
-  const [claimAmount, setClaimAmount] = useState('')
-  const [category, setCategory] = useState('ssm_fee')
-  const [amount, setAmount] = useState(0)
-  const [transferAmt, setTransferAmt] = useState(0)
-  const [cashAmt, setCashAmt] = useState(0)
-  const [note, setNote] = useState('')
+function CostFormModal({ caseId, currentUser, banks = [], cost = null, onClose, onSave }) {
+  const isEdit = !!cost
+  const [bankName, setBankName] = useState(cost?.bank_name || '')
+  const [paidBy, setPaidBy] = useState(cost?.paid_by || '我自己')
+  const [claimType, setClaimType] = useState(cost?.claim_type || 'none')
+  const [claimAmount, setClaimAmount] = useState(cost?.claim_amount ?? '')
+  const [category, setCategory] = useState(cost?.category || 'ssm_fee')
+  const [amount, setAmount] = useState(cost?.amount ?? 0)
+  const [transferAmt, setTransferAmt] = useState(cost && cost.payment_method === 'split' ? (cost.transfer_amount || 0) : (cost?.payment_method === 'cash' ? 0 : 0))
+  const [cashAmt, setCashAmt] = useState(cost && cost.payment_method === 'split' ? (cost.cash_amount || 0) : (cost?.payment_method === 'cash' ? (cost.amount || 0) : 0))
+  const [note, setNote] = useState(cost?.note || '')
   const [loading, setLoading] = useState(false)
   const splitTotal = (Number(transferAmt) || 0) + (Number(cashAmt) || 0)
   const splitMismatch = Number(amount) > 0 && splitTotal > 0 && Math.abs(splitTotal - Number(amount)) > 0.005
@@ -1330,19 +1353,26 @@ function CostFormModal({ caseId, currentUser, banks = [], onClose, onSave }) {
     setLoading(true)
     const noSplit = splitTotal === 0
     const paymentMethod = noSplit ? 'transfer' : Number(cashAmt) > 0 && Number(transferAmt) > 0 ? 'split' : Number(cashAmt) > 0 ? 'cash' : 'transfer'
-    await supabase.from('case_costs').insert({
+    const payload = {
       case_id: caseId, category, amount: Number(amount),
       payment_method: paymentMethod, transfer_amount: noSplit ? Number(amount) : (Number(transferAmt) || 0), cash_amount: noSplit ? 0 : (Number(cashAmt) || 0),
       bank_name: bankName || null, paid_by: paidBy || '我自己', cost_date: new Date().toISOString().slice(0, 10),
       claim_type: claimType, claim_amount: claimType === 'none' ? null : (claimAmount === '' ? Number(amount) : Number(claimAmount)),
-      note, created_by: currentUser.id,
-    })
+      note,
+    }
+    if (isEdit) {
+      delete payload.cost_date
+      const { error } = await supabase.from('case_costs').update(payload).eq('id', cost.id)
+      if (error) { setLoading(false); alert('保存失败：' + error.message); return }
+    } else {
+      await supabase.from('case_costs').insert({ ...payload, created_by: currentUser.id })
+    }
     const cat = ALL_COST_CATS.find(c => c.key === category)
     setLoading(false); onSave(cat?.label || category, amount, note)
   }
 
   return (
-    <Modal title="新增费用记录" onClose={onClose}>
+    <Modal title={isEdit ? "编辑费用记录" : "新增费用记录"} onClose={onClose}>
       <div className="space-y-3">
         <Field label="费用类别">
           <Sel value={category} onChange={setCategory} options={ALL_COST_CATS.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))} />

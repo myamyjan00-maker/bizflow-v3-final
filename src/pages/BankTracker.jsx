@@ -192,28 +192,28 @@ export default function BankTracker({ currentUser, onNavigate }) {
       </div>
 
       {/* 矩阵 */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-auto max-h-[75vh]">
+        <table className="w-full text-sm border-separate border-spacing-0">
+          <thead>
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">公司 / Owner</th>
-              {columns.map(n => <th key={n} className="px-2 py-2 text-center text-[11px] font-bold text-slate-500 whitespace-nowrap">{SHORT[n] || n}</th>)}
-              <th className="px-3 py-2 text-center text-xs font-bold text-slate-500">进度</th>
+              <th className="sticky top-0 left-0 z-30 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">公司 / Owner</th>
+              {columns.map(n => <th key={n} className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-2 py-2 text-center text-[11px] font-bold text-slate-500 whitespace-nowrap">{SHORT[n] || n}</th>)}
+              <th className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-center text-xs font-bold text-slate-500">进度</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tbody>
             {visible.map(r => (
-              <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => onNavigate('case', r.id)}>
-                <td className="px-3 py-2 max-w-[220px]">
+              <tr key={r.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => onNavigate('case', r.id)}>
+                <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 px-3 py-2 max-w-[220px]">
                   <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{r.company}</p>
                   <p className="text-[11px] text-slate-400 truncate">{r.owner}{r.agent ? ' · ' + r.agent : ''}{r.terminated ? ' · 已终止' : ''}</p>
                 </td>
                 {columns.map(n => (
-                  <td key={n} className="px-1 py-2 text-center">
+                  <td key={n} className="border-b border-slate-100 dark:border-slate-800 px-1 py-2 text-center">
                     <span title={CELL[r.cells[n]].label} className={`inline-block w-8 h-7 leading-7 rounded-lg text-sm ${CELL[r.cells[n]].cls}`}>{CELL[r.cells[n]].icon}</span>
                   </td>
                 ))}
-                <td className="px-3 py-2 text-center whitespace-nowrap">
+                <td className="border-b border-slate-100 dark:border-slate-800 px-3 py-2 text-center whitespace-nowrap">
                   <span className={`text-xs font-bold ${r.doneOf8 === 8 ? 'text-emerald-600' : r.doneOf8 === 0 ? 'text-red-500' : 'text-amber-600'}`}>{r.doneOf8} / 8</span>
                 </td>
               </tr>
