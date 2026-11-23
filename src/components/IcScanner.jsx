@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseMyKad } from '../lib/icParse'
+import { scanIc } from '../lib/icScan'
 
 const TESS_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
 function loadTesseract() {
@@ -10,6 +10,7 @@ function loadTesseract() {
     document.head.appendChild(s)
   })
 }
+
 
 const STATUS = {
   idle: ['待识别', 'bg-slate-100 text-slate-500'],
@@ -24,6 +25,7 @@ export default function IcScanner({ file, onFile, onExtract }) {
   const [status, setStatus] = useState('idle')
   const [msgs, setMsgs] = useState([])
   const [preview, setPreview] = useState(null)
+  const [progress, setProgress] = useState('')
 
   const pick = async (e) => {
     const f = e.target.files[0] || null
@@ -35,21 +37,18 @@ export default function IcScanner({ file, onFile, onExtract }) {
     setStatus('processing')
     try {
       const T = await loadTesseract()
-      const worker = await T.createWorker('eng')
-      const { data } = await worker.recognize(f)
-      await worker.terminate()
-      const lines = (data.lines || []).map(l => ({ text: l.text, conf: l.confidence }))
-      const r = parseMyKad(lines.length ? lines : String(data.text || '').split('\n').map(t => ({ text: t, conf: 70 })))
+      const r = await scanIc(f, T, setProgress)
       const warn = [...r.warnings]
-      if (r.low.ic) warn.push('IC 号码识别可信度低，请对照照片')
-      if (r.low.name) warn.push('姓名识别可信度低，请对照照片')
-      if (r.low.address) warn.push('地址识别可信度低，请对照照片')
+      if (r.low.ic) warn.push('IC 号码几次识别结果不一致，请逐位对照照片')
+      if (r.low.name) warn.push('姓名几次识别结果不一致，请对照照片')
+      if (r.low.address) warn.push('地址几次识别结果不一致，请对照照片')
       setMsgs(warn); setStatus(warn.length ? 'review' : 'done')
       onExtract(r)
     } catch (err) { setStatus('failed'); setMsgs([err.message || '识别失败，请手动填写']) }
   }
 
-  const [label, cls] = STATUS[status]
+  const [label0, cls] = STATUS[status]
+  const label = status === 'processing' && progress ? `识别中 ${progress}` : label0
   return (
     <div className="pt-2 border-t border-slate-100 space-y-2">
       <div className="flex items-center justify-between">
@@ -60,7 +59,7 @@ export default function IcScanner({ file, onFile, onExtract }) {
         className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:text-xs" />
       {preview && <img src={preview} alt="IC" className="max-h-40 rounded-lg border border-slate-200" />}
       {msgs.map((m, i) => <p key={i} className="text-[11px] text-amber-600">⚠️ {m}</p>)}
-      <p className="text-[11px] text-slate-400">🔒 识别在你的浏览器里完成，图片不会发给第三方；识别结果可能有错，请对照照片检查后再保存。</p>
+      <p className="text-[11px] text-slate-400">🔒 识别在你的浏览器里完成，图片不会发给第三方；识别结果可能有错，请对照照片检查后再保存。拍照时请把 IC 放平、光线均匀、避免反光，并让卡片占满画面。</p>
     </div>
   )
 }
