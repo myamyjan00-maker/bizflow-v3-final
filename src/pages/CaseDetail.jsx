@@ -655,12 +655,17 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
               {costs.length === 0 && <p className="text-slate-400 text-sm text-center py-8">暂无费用记录</p>}
               <div className="space-y-2">
                 {costs.map(c => {
-                  const cat = COST_CATEGORIES.find(x => x.key === c.category)
+                  const cat = ALL_COST_CATS.find(x => x.key === c.category)
+                  const ctype = c.claim_type || 'none'
                   return (
                     <div key={c.id} className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3">
                       <span className="text-xl">{cat?.icon || '💵'}</span>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{cat?.label || c.category}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {c.bank_name ? `🏦 ${c.bank_name} · ` : ''}垫付：{c.paid_by || '我自己'}
+                          {ctype === 'customer' ? ' · 向客户 Claim' : ctype === 'payer' ? ' · 要还垫付人' : ''}
+                        </p>
                         {c.note && <p className="text-xs text-slate-400">{c.note}</p>}
                       </div>
                       <span className="text-sm font-bold text-red-600">RM {Number(c.amount).toFixed(2)}</span>
@@ -734,7 +739,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           onSave={saveReturn} />
       )}
       {showAddCost && (
-        <CostFormModal caseId={caseId} currentUser={currentUser}
+        <CostFormModal caseId={caseId} currentUser={currentUser} banks={banks}
           onClose={() => setShowAddCost(false)}
           onSave={async (cat, amount, note) => {
             setShowAddCost(false); loadAll()
@@ -1082,9 +1087,14 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
             </div>
           ))}
         </div>
-        {/* Fees */}
-        <div className="col-span-2 bg-amber-50 rounded-xl p-3 space-y-2">
-          <p className="text-xs font-bold text-amber-700">💰 银行费用</p>
+        {/* Fees：费用统一在「费用」页 / 案件费用 Tab 记录；旧资料有填过才显示这一块，避免重复输入 */}
+        {totalFees === 0 && (
+          <div className="col-span-2 bg-slate-50 rounded-xl px-3 py-2 text-xs text-slate-500">
+            💡 Bank Charge、电话卡等成本不用在这里填，请到案件的「💵 费用」页记录一次，全站自动同步。
+          </div>
+        )}
+        {totalFees > 0 && <div className="col-span-2 bg-amber-50 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-bold text-amber-700">💰 银行费用（旧资料，新费用请到「费用」页记）</p>
           <div className="grid grid-cols-3 gap-2">
             {[['Deposit', 'fee_deposit'], ['Bank Charge', 'fee_bank_charge'], ['Card 费', 'fee_card'], ['电话卡', 'fee_simcard'], ['外汇 Charge', 'fee_forex'], ['其他', 'fee_others']].map(([label, key]) => (
               <Field key={key} label={`${label} (RM)`}><Inp type="number" value={form[key]} onChange={v => set(key, v)} /></Field>
@@ -1094,7 +1104,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
             <span className="text-amber-600">总费用：<strong>RM {totalFees.toFixed(2)}</strong></span>
             <span className={netCommission >= 0 ? 'text-green-600' : 'text-red-600'}>净佣金：<strong>RM {netCommission.toFixed(2)}</strong></span>
           </div>
-        </div>
+        </div>}
         <div className="col-span-2 flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={handleSave} disabled={loading} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{loading ? '保存中...' : '保存'}</button>
@@ -1292,7 +1302,19 @@ function ReturnFormModal({ deposit, accounts, onClose, onSave }) {
   )
 }
 
-function CostFormModal({ caseId, currentUser, onClose, onSave }) {
+const EXTRA_COST_CATS = [{ key: 'lease', label: '租约', icon: '🏠' }, { key: 'license', label: '营业执照', icon: '📄' }, { key: 'transport', label: '交通', icon: '🚗' }]
+const ALL_COST_CATS = [...COST_CATEGORIES, ...EXTRA_COST_CATS.filter(e => !COST_CATEGORIES.some(c => c.key === e.key))]
+const CLAIM_TYPE_OPTIONS = [
+  { value: 'none', label: '不需要 Claim' },
+  { value: 'customer', label: '向客户 Claim（客户要还我）' },
+  { value: 'payer', label: '要还给垫付的人（我要还别人）' },
+]
+
+function CostFormModal({ caseId, currentUser, banks = [], onClose, onSave }) {
+  const [bankName, setBankName] = useState('')
+  const [paidBy, setPaidBy] = useState('我自己')
+  const [claimType, setClaimType] = useState('none')
+  const [claimAmount, setClaimAmount] = useState('')
   const [category, setCategory] = useState('ssm_fee')
   const [amount, setAmount] = useState(0)
   const [transferAmt, setTransferAmt] = useState(0)
@@ -1300,19 +1322,22 @@ function CostFormModal({ caseId, currentUser, onClose, onSave }) {
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const splitTotal = (Number(transferAmt) || 0) + (Number(cashAmt) || 0)
-  const splitMismatch = Number(amount) > 0 && splitTotal !== Number(amount)
+  const splitMismatch = Number(amount) > 0 && splitTotal > 0 && Math.abs(splitTotal - Number(amount)) > 0.005
 
   const handleSave = async () => {
     if (!amount) return
     if (splitMismatch) return
     setLoading(true)
-    const paymentMethod = Number(cashAmt) > 0 && Number(transferAmt) > 0 ? 'split' : Number(cashAmt) > 0 ? 'cash' : 'transfer'
+    const noSplit = splitTotal === 0
+    const paymentMethod = noSplit ? 'transfer' : Number(cashAmt) > 0 && Number(transferAmt) > 0 ? 'split' : Number(cashAmt) > 0 ? 'cash' : 'transfer'
     await supabase.from('case_costs').insert({
       case_id: caseId, category, amount: Number(amount),
-      payment_method: paymentMethod, transfer_amount: Number(transferAmt) || 0, cash_amount: Number(cashAmt) || 0,
+      payment_method: paymentMethod, transfer_amount: noSplit ? Number(amount) : (Number(transferAmt) || 0), cash_amount: noSplit ? 0 : (Number(cashAmt) || 0),
+      bank_name: bankName || null, paid_by: paidBy || '我自己', cost_date: new Date().toISOString().slice(0, 10),
+      claim_type: claimType, claim_amount: claimType === 'none' ? null : (claimAmount === '' ? Number(amount) : Number(claimAmount)),
       note, created_by: currentUser.id,
     })
-    const cat = COST_CATEGORIES.find(c => c.key === category)
+    const cat = ALL_COST_CATS.find(c => c.key === category)
     setLoading(false); onSave(cat?.label || category, amount, note)
   }
 
@@ -1320,10 +1345,20 @@ function CostFormModal({ caseId, currentUser, onClose, onSave }) {
     <Modal title="新增费用记录" onClose={onClose}>
       <div className="space-y-3">
         <Field label="费用类别">
-          <Sel value={category} onChange={setCategory} options={COST_CATEGORIES.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))} />
+          <Sel value={category} onChange={setCategory} options={ALL_COST_CATS.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))} />
+        </Field>
+        <Field label="相关银行（银行费用才选）">
+          <Sel value={bankName} onChange={setBankName} options={[...new Set([...banks.map(b => b.bank_name), 'RHB', 'Affin', 'Hong Leong', 'CIMB', 'BSN', 'Bank Muamalat', 'Maybank', 'AmBank', 'OCBC'])]} />
         </Field>
         <Field label="金额 (RM) *"><Inp type="number" value={amount} onChange={setAmount} /></Field>
-        <Field label="付款方式（可拆分）">
+        <Field label="谁先垫付">
+          <input list="cost-payer-list" value={paidBy} onChange={e => setPaidBy(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          <datalist id="cost-payer-list"><option value="我自己" /><option value="公司" /></datalist>
+        </Field>
+        <Field label="Claim 类型"><Sel value={claimType} onChange={setClaimType} options={CLAIM_TYPE_OPTIONS} /></Field>
+        {claimType !== 'none' && <Field label="Claim 金额（不填 = 全额）"><Inp type="number" value={claimAmount} onChange={setClaimAmount} placeholder={String(amount || '')} /></Field>}
+        <Field label="付款方式（不填 = 全部转账；要拆分才填）">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-slate-500 mb-1">🏦 转账金额 (RM)</label>
