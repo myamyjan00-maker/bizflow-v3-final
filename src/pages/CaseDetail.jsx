@@ -10,6 +10,7 @@ const TABS = [
   { id: 'bank',     label: '🏦 银行' },
   { id: 'deposit',  label: '💰 Deposit' },
   { id: 'costs',    label: '💵 费用' },
+  { id: 'payments', label: '💳 收款' },
   { id: 'docs',     label: '📁 文件' },
 ]
 
@@ -20,6 +21,9 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   const [deposits, setDeposits] = useState([])
   const [depositReturns, setDepositReturns] = useState([])
   const [costs, setCosts] = useState([])
+  const [payments, setPayments] = useState([])
+  const [showAddPayment, setShowAddPayment] = useState(null) // 'payment' | 'refund'
+  const [showFeeModal, setShowFeeModal] = useState(false)
   const [files, setFiles] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -82,6 +86,8 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     }
     setCas(c); setTimeline(tl || []); setBanks(bankData); setDeposits(depositData); setDepositReturns(returnData)
     setCosts(co || []); setFiles(fileData); setAccounts(acc || [])
+    const { data: pay } = await supabase.from('case_payments').select('*').eq('case_id', caseId).order('payment_date', { ascending: true }).order('created_at', { ascending: true })
+    setPayments(pay || [])
     setLoading(false)
   }
 
@@ -215,7 +221,12 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   const ssm = cas.ssm
   const totalCosts = costs.reduce((s, c) => s + (Number(c.amount) || 0), 0)
   const totalBankCommission = banks.reduce((s, b) => s + (Number(b.commission) || 0), 0)
-  const netProfit = totalBankCommission - totalCosts
+  // 应收总额：有手动填「应收总额」就用它，没有就用各银行户口的「收费」加总
+  const hasServiceFee = cas.service_fee !== null && cas.service_fee !== undefined
+  const totalRevenue = hasServiceFee ? Number(cas.service_fee) : totalBankCommission
+  const totalReceived = payments.reduce((s, p) => s + (p.kind === 'refund' ? -1 : 1) * (Number(p.amount) || 0), 0)
+  const outstandingFee = totalRevenue - totalReceived
+  const netProfit = totalRevenue - totalCosts
   // 优先用 deposit_returns 这份回款清单即时加总（一笔押金可能分好几次回来）
   // 清单里没有资料的旧押金，才退回用 returned_amount 欄位或状态推算，保持兼容旧数据
   const getReturnedAmount = (d) => {
@@ -629,8 +640,8 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                 <p className="text-xs text-slate-300 mb-3 uppercase tracking-wide">损益概览</p>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <p className="text-2xl font-black text-green-400">RM {totalBankCommission.toFixed(2)}</p>
-                    <p className="text-xs text-slate-300">总收费</p>
+                    <p className="text-2xl font-black text-green-400">RM {totalRevenue.toFixed(2)}</p>
+                    <p className="text-xs text-slate-300">总收费（应收）</p>
                   </div>
                   <div>
                     <p className="text-2xl font-black text-red-400">RM {totalCosts.toFixed(2)}</p>
@@ -690,6 +701,58 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
           )}
 
           {/* ── Documents ── */}
+          {/* ── Payments ── */}
+          {tab === 'payments' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl p-5 text-white">
+                <p className="text-xs text-slate-300 mb-3 uppercase tracking-wide">客户收款</p>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-black text-slate-100">RM {totalRevenue.toFixed(2)}</p>
+                    <p className="text-xs text-slate-300">应收总额{hasServiceFee ? '' : '（银行收费加总）'}</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-green-400">RM {totalReceived.toFixed(2)}</p>
+                    <p className="text-xs text-slate-300">已收</p>
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-black ${outstandingFee > 0.005 ? 'text-red-400' : 'text-green-300'}`}>RM {outstandingFee.toFixed(2)}</p>
+                    <p className="text-xs text-slate-300">{outstandingFee > 0.005 ? '客户还欠' : outstandingFee < -0.005 ? '多收了' : '已收齐'}</p>
+                  </div>
+                </div>
+              </div>
+              {['super_admin', 'admin'].includes(currentUser.role) && (
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => setShowAddPayment('payment')} className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold">+ 记录收款</button>
+                  <button onClick={() => setShowAddPayment('refund')} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold">↩ 记录退款</button>
+                  <button onClick={() => setShowFeeModal(true)} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold">✏️ 设置应收总额</button>
+                </div>
+              )}
+              {payments.length === 0 && <p className="text-slate-400 text-sm text-center py-8">还没有收款记录</p>}
+              <div className="space-y-2">
+                {payments.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3">
+                    <span className="text-xl">{p.kind === 'refund' ? '↩️' : '💳'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.kind === 'refund' ? '退款' : '收款'}{p.payment_method ? ` · ${PAYMENT_METHODS[p.payment_method]?.label || p.payment_method}` : ''}</p>
+                      <p className="text-xs text-slate-400">{fmt(p.payment_date)}{p.reference ? ` · ${p.reference}` : ''}{p.note ? ` · ${p.note}` : ''}</p>
+                    </div>
+                    <span className={`text-sm font-bold ${p.kind === 'refund' ? 'text-red-600' : 'text-green-600'}`}>{p.kind === 'refund' ? '-' : '+'}RM {Number(p.amount).toFixed(2)}</span>
+                    {['super_admin', 'admin'].includes(currentUser.role) && (
+                      <button onClick={async () => {
+                        if (!window.confirm(`确定删除这笔${p.kind === 'refund' ? '退款' : '收款'} RM ${Number(p.amount).toFixed(2)}？`)) return
+                        const { error } = await supabase.from('case_payments').delete().eq('id', p.id)
+                        if (error) { toast('删除失败：' + error.message, 'error'); return }
+                        await logTimeline('删除收款', `${p.kind === 'refund' ? '退款' : '收款'} RM${Number(p.amount).toFixed(2)}`)
+                        toast('已删除'); loadAll()
+                      }} className="px-2 py-1 text-xs rounded-lg bg-red-50 text-red-500 hover:bg-red-100">删</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {tab === 'docs' && (
             <DocsTab files={files} ssmId={cas.ssm_id} ownerId={cas.owner_id} currentUser={currentUser} toast={toast} onReload={loadAll} />
           )}
@@ -758,6 +821,24 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
             setShowAddCost(false); loadAll()
             await logTimeline('新增费用', `${cat} RM${amount}${note ? ' - ' + note : ''}`)
             toast('费用已记录')
+          }} />
+      )}
+      {showAddPayment && (
+        <PaymentModal caseId={caseId} kind={showAddPayment} currentUser={currentUser} outstanding={outstandingFee} received={totalReceived}
+          onClose={() => setShowAddPayment(null)}
+          onSave={async (kind, amount) => {
+            setShowAddPayment(null); loadAll()
+            await logTimeline(kind === 'refund' ? '客户退款' : '收到客户付款', `RM${Number(amount).toFixed(2)}`)
+            toast(kind === 'refund' ? '退款已记录' : '收款已记录')
+          }} toast={toast} />
+      )}
+      {showFeeModal && (
+        <ServiceFeeModal current={cas.service_fee} bankSum={totalBankCommission}
+          onClose={() => setShowFeeModal(false)}
+          onSave={async (val) => {
+            const { error } = await supabase.from('cases').update({ service_fee: val }).eq('id', caseId)
+            if (error) { toast('保存失败：' + error.message, 'error'); return }
+            setShowFeeModal(false); loadAll(); toast('应收总额已更新')
           }} />
       )}
       {editCost && (
@@ -1318,6 +1399,56 @@ function ReturnFormModal({ deposit, accounts, onClose, onSave }) {
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
           <button onClick={handleSave} disabled={saving || !amount || !accountId}
             className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function PaymentModal({ caseId, kind, currentUser, outstanding, received, onClose, onSave, toast }) {
+  const [amount, setAmount] = useState(kind === 'payment' && outstanding > 0 ? String(outstanding) : '')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [method, setMethod] = useState('transfer')
+  const [reference, setReference] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    const a = Number(amount)
+    if (!(a > 0)) { toast('请填金额', 'error'); return }
+    if (kind === 'refund' && a > received + 0.005 && !window.confirm(`退款 RM ${a.toFixed(2)} 比已收的 RM ${received.toFixed(2)} 还多，确定吗？`)) return
+    setBusy(true)
+    const { error } = await supabase.from('case_payments').insert({ case_id: caseId, kind, amount: a, payment_date: date || null, payment_method: method, reference: reference || null, note: note || null, created_by: currentUser.id })
+    setBusy(false)
+    if (error) { toast('保存失败：' + error.message, 'error'); return }
+    onSave(kind, a)
+  }
+  return (
+    <Modal title={kind === 'refund' ? '记录退款' : '记录客户收款'} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="金额 (RM) *"><Inp type="number" value={amount} onChange={setAmount} /></Field>
+        <Field label="日期"><Inp type="date" value={date} onChange={setDate} /></Field>
+        <Field label="付款方式"><Sel value={method} onChange={setMethod} options={Object.entries(PAYMENT_METHODS).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` }))} /></Field>
+        <Field label="单号 / 参考"><Inp value={reference} onChange={setReference} placeholder="（可选）" /></Field>
+        <Field label="备注" span2><Inp value={note} onChange={setNote} placeholder="（可选）" /></Field>
+      </div>
+      <div className="flex gap-2 justify-end pt-4 mt-4 border-t border-slate-200">
+        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
+        <button onClick={save} disabled={busy} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{busy ? '保存中...' : '保存'}</button>
+      </div>
+    </Modal>
+  )
+}
+
+function ServiceFeeModal({ current, bankSum, onClose, onSave }) {
+  const [val, setVal] = useState(current === null || current === undefined ? '' : String(current))
+  return (
+    <Modal title="设置应收总额" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-xs text-slate-500">这个案件要向客户收的服务费总额。留空 = 自动用各银行户口的「收费」加总（现在是 RM {Number(bankSum).toFixed(2)}）。</p>
+        <Field label="应收总额 (RM)"><Inp type="number" value={val} onChange={setVal} placeholder={String(bankSum)} /></Field>
+        <div className="flex gap-2 justify-end pt-3 border-t border-slate-200">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
+          <button onClick={() => onSave(val === '' ? null : Number(val))} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">保存</button>
         </div>
       </div>
     </Modal>

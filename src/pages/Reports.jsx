@@ -7,6 +7,7 @@ const TABS = [
   { id: 'pending',    label: '⏳ 未完成户口' },
   { id: 'missing',    label: '⚠️ 资料缺失' },
   { id: 'monthly',    label: '📅 月度报表' },
+  { id: 'owed',       label: '💳 客户欠款' },
   { id: 'recon',      label: '🧾 Agent 对账' },
   { id: 'accounts',   label: '💰 账户报表' },
 ]
@@ -34,12 +35,14 @@ export default function Reports({ currentUser, onNavigate }) {
   const [rates, setRates] = useState({}) // agent_id -> 每个户口单价
   const rateOf = id => (rates[id] ?? 800)
   const [paidFilter, setPaidFilter] = useState('all') // all | unpaid | paid
+  const [payments, setPayments] = useState([])
+  const [owedOnly, setOwedOnly] = useState(true)
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }, { data: dep }, { data: rt }] = await Promise.all([
+    const [{ data: c }, { data: b }, { data: o }, { data: s }, { data: a }, { data: f }, { data: ca }, { data: tx }, { data: dep }, { data: rt }, { data: pay }] = await Promise.all([
       supabase.from('cases').select('*').order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('owners').select('id,name,ic,phone,email,address'),
@@ -53,6 +56,7 @@ export default function Reports({ currentUser, onNavigate }) {
       supabase.from('account_transactions').select('*, company_accounts(name), cases(case_no)').order('date', { ascending: false }),
       supabase.from('deposits').select('account_id, bank_charge, company_accounts!account_id(name)'),
       supabase.from('agent_rates').select('agent_id, rate'),
+      supabase.from('case_payments').select('case_id, kind, amount'),
     ])
     setCases(currentUser.role === 'agent' ? (c || []).filter(x => x.agent_id === currentUser.id) : (c || []))
     setBanks(b || [])
@@ -63,6 +67,7 @@ export default function Reports({ currentUser, onNavigate }) {
     setCompanyAccounts(ca || [])
     setTransactions(tx || [])
     setDeposits(dep || [])
+    setPayments(pay || [])
     setRates(Object.fromEntries((rt || []).map(r => [r.agent_id, Number(r.rate)])))
     setLoading(false)
   }
@@ -260,6 +265,18 @@ export default function Reports({ currentUser, onNavigate }) {
     URL.revokeObjectURL(url)
   }
 
+  // ── 客户欠款：应收（手动应收总额，没有就用银行户口收费加总）− 已收（收款 − 退款）──
+  const owedRows = useMemo(() => {
+    const recv = {}
+    payments.forEach(p => { recv[p.case_id] = (recv[p.case_id] || 0) + (p.kind === 'refund' ? -1 : 1) * (Number(p.amount) || 0) })
+    return cases.filter(c => !c.termination_type).filter(c => agentFilter === '全部' || getAgent(c.agent_id)?.display_name === agentFilter).map(c => {
+      const bankSum = banks.filter(b => b.ssm_id === c.ssm_id).reduce((s, b) => s + (Number(b.commission) || 0), 0)
+      const billed = c.service_fee !== null && c.service_fee !== undefined ? Number(c.service_fee) : bankSum
+      const received = recv[c.id] || 0
+      return { id: c.id, case_no: c.case_no, company: getSSM(c.ssm_id)?.ssm_name || '（未命名）', owner: getOwner(c.owner_id)?.name || '', agent: getAgent(c.agent_id)?.display_name || '', billed, received, outstanding: billed - received }
+    }).filter(r => r.billed > 0 || r.received > 0).filter(r => !owedOnly || r.outstanding > 0.005).sort((a, b) => b.outstanding - a.outstanding)
+  }, [cases, banks, ssms, owners, agents, payments, agentFilter, owedOnly])
+
   // ── Agent 对账（每个户口客户付 RM{rate} 给我）──────────────────────────────
   const reconRows = useMemo(() => {
     return banks.filter(b => {
@@ -363,7 +380,7 @@ export default function Reports({ currentUser, onNavigate }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 overflow-x-auto">
-        {TABS.filter(t => !['accounts', 'recon'].includes(t.id) || currentUser.role !== 'agent').map(t => (
+        {TABS.filter(t => !['accounts', 'recon', 'owed'].includes(t.id) || currentUser.role !== 'agent').map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 px-3 text-xs rounded-lg font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
             {t.label}
@@ -722,6 +739,50 @@ export default function Reports({ currentUser, onNavigate }) {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── 客户欠款 ── */}
+      {tab === 'owed' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['应收总额', owedRows.reduce((s, r) => s + r.billed, 0), 'bg-teal-50 border-teal-100 text-teal-700'],
+              ['已收', owedRows.reduce((s, r) => s + r.received, 0), 'bg-emerald-50 border-emerald-100 text-emerald-700'],
+              ['客户还欠', owedRows.reduce((s, r) => s + Math.max(0, r.outstanding), 0), 'bg-red-50 border-red-100 text-red-600'],
+            ].map(([label, val, cls]) => (
+              <div key={label} className={`rounded-2xl border p-4 ${cls}`}>
+                <p className="text-xs font-medium opacity-70">{label}</p>
+                <p className="text-xl font-black mt-1">RM {val.toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setOwedOnly(true)} className={`px-3 py-1.5 text-xs rounded-lg font-medium ${owedOnly ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'}`}>只看欠款</button>
+            <button onClick={() => setOwedOnly(false)} className={`px-3 py-1.5 text-xs rounded-lg font-medium ${!owedOnly ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'}`}>全部</button>
+            <button onClick={() => downloadCSV([['案件', '公司', 'Owner', 'Agent', '应收', '已收', '欠款'], ...owedRows.map(r => [r.case_no, r.company, r.owner, r.agent, r.billed.toFixed(2), r.received.toFixed(2), r.outstanding.toFixed(2)])], 'customer_outstanding.csv')} className="ml-auto px-3 py-1.5 text-xs rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold">📊 下载 Excel</button>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-auto max-h-[75vh]">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead>
+                <tr>{['公司 / Owner', 'Agent', '应收', '已收', '欠款', ''].map(h => <th key={h} className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>)}</tr>
+              </thead>
+              <tbody className="[&>tr>td]:border-b [&>tr>td]:border-slate-100 dark:[&>tr>td]:border-slate-800">
+                {owedRows.map(r => (
+                  <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => onNavigate('case', r.id)}>
+                    <td className="px-3 py-2 max-w-[240px]"><p className="font-bold text-slate-800 dark:text-slate-100 truncate">{r.company}</p><p className="text-[11px] text-slate-400 truncate">{r.case_no}{r.owner ? ' · ' + r.owner : ''}</p></td>
+                    <td className="px-3 py-2 text-xs">{r.agent || '—'}</td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">RM {r.billed.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-xs text-emerald-600 whitespace-nowrap">RM {r.received.toFixed(2)}</td>
+                    <td className={`px-3 py-2 text-xs font-bold whitespace-nowrap ${r.outstanding > 0.005 ? 'text-red-500' : 'text-emerald-600'}`}>RM {r.outstanding.toFixed(2)}</td>
+                    <td className="px-3 py-2"><span className="text-xs text-teal-600">查看 →</span></td>
+                  </tr>
+                ))}
+                {owedRows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">没有客户欠款</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-slate-400">应收 = 案件里设置的「应收总额」，没设置就用各银行户口的「收费」加总。要记录收款，到案件的「💳 收款」页。</p>
         </div>
       )}
 
