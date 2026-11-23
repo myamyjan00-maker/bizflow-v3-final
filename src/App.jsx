@@ -5,6 +5,7 @@ import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Finance from './pages/Finance'
 import Reports from './pages/Reports'
+import BankTracker from './pages/BankTracker'
 import Settings from './pages/Settings'
 import { Toasts, useToast } from './components/UI'
 import { LogoFull, LogoIcon } from './components/Logo'
@@ -12,6 +13,7 @@ import { LogoFull, LogoIcon } from './components/Logo'
 const NAV = [
   { id: 'dashboard', icon: '📊', label: 'Dashboard' },
   { id: 'cases',     icon: '📁', label: '案件管理' },
+  { id: 'banks',     icon: '🏦', label: '银行追踪' },
   { id: 'reports',   icon: '📋', label: '报表' },
   { id: 'finance',   icon: '💰', label: '财务',      adminOnly: true },
   { id: 'settings',  icon: '⚙️',  label: '设置',      adminOnly: true },
@@ -127,6 +129,7 @@ export default function App() {
             {page === 'dashboard' && <Dashboard currentUser={currentUser} onNavigate={goTo} />}
             {page === 'cases' && <Cases currentUser={currentUser} onNavigate={goTo} initialFilter={caseFilter} toast={toast} />}
             {page === 'case' && caseId && <CaseDetail caseId={caseId} currentUser={currentUser} onBack={() => setPage('cases')} toast={toast} />}
+            {page === 'banks' && <BankTracker currentUser={currentUser} onNavigate={goTo} />}
             {page === 'reports' && <Reports currentUser={currentUser} onNavigate={goTo} />}
             {page === 'finance' && isAdmin && <Finance currentUser={currentUser} onNavigate={goTo} toast={toast} />}
             {page === 'settings' && isAdmin && <Settings currentUser={currentUser} toast={toast} />}

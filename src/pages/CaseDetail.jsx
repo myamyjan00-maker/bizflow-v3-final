@@ -1040,7 +1040,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
   return (
     <Modal title={initial ? '编辑银行户口' : '新增银行户口'} onClose={onClose} wide>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="银行"><Sel value={form.bank_name} onChange={v => set('bank_name', v)} options={BANKS} /></Field>
+        <Field label="银行"><Sel value={form.bank_name} onChange={v => set('bank_name', v)} options={[...BANKS, ...['BSN', 'AmBank'].filter(b => !BANKS.includes(b))]} /></Field>
         <Field label="状态"><Sel value={form.status} onChange={v => set('status', v)} options={BANK_STATUSES.filter(s => s !== 'Blacklist' || ['super_admin', 'admin'].includes(currentUser.role))} /></Field>
         <Field label="账号"><Inp value={form.account_no} onChange={v => set('account_no', v)} /></Field>
         <Field label="分行"><Inp value={form.branch} onChange={v => set('branch', v)} /></Field>
