@@ -7,6 +7,8 @@ import Finance from './pages/Finance'
 import Reports from './pages/Reports'
 import BankTracker from './pages/BankTracker'
 import Expenses from './pages/Expenses'
+import Commissions from './pages/Commissions'
+import IcMigration from './pages/IcMigration'
 import Settings from './pages/Settings'
 import { Toasts, useToast } from './components/UI'
 import { LogoFull, LogoIcon } from './components/Logo'
@@ -17,6 +19,8 @@ const NAV = [
   { id: 'banks',     icon: '🏦', label: '银行追踪' },
   { id: 'reports',   icon: '📋', label: '报表' },
   { id: 'expenses',  icon: '🧾', label: '费用 & Claim', adminOnly: true },
+  { id: 'commissions', icon: '🤝', label: '佣金', adminOnly: true },
+  { id: 'icmigrate', icon: '🔒', label: 'IC 迁移（一次性）', adminOnly: true },
   { id: 'finance',   icon: '💰', label: '财务',      adminOnly: true },
   { id: 'settings',  icon: '⚙️',  label: '设置',      adminOnly: true },
 ]
@@ -134,6 +138,8 @@ export default function App() {
             {page === 'banks' && <BankTracker currentUser={currentUser} onNavigate={goTo} />}
             {page === 'reports' && <Reports currentUser={currentUser} onNavigate={goTo} />}
             {page === 'expenses' && isAdmin && <Expenses currentUser={currentUser} toast={toast} />}
+            {page === 'commissions' && isAdmin && <Commissions currentUser={currentUser} toast={toast} />}
+            {page === 'icmigrate' && isAdmin && <IcMigration toast={toast} />}
             {page === 'finance' && isAdmin && <Finance currentUser={currentUser} onNavigate={goTo} toast={toast} />}
             {page === 'settings' && isAdmin && <Settings currentUser={currentUser} toast={toast} />}
           </main>

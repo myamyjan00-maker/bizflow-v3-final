@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { CASE_STATUSES, CASE_STATUS_ICONS, fmt } from '../lib/constants'
 import { CaseBadge, Pagination, Modal, Field, Inp, Sel } from '../components/UI'
+import IcScanner from '../components/IcScanner'
+import { uploadIcFile } from '../lib/fileUrl'
+import { validIC } from '../lib/icParse'
 
 export default function Cases({ currentUser, onNavigate, initialFilter, toast }) {
   const [cases, setCases] = useState([])
@@ -184,12 +187,35 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
   const [ownerSearch, setOwnerSearch] = useState('')
   const [selectedOwner, setSelectedOwner] = useState(null)
   const [icFile, setIcFile] = useState(null)
+  const [scanned, setScanned] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [dup, setDup] = useState(null) // { owner, companies }
   const [form, setForm] = useState({
     agent_id: currentUser.role === 'agent' ? currentUser.id : '',
     owner_name: '', owner_ic: '', owner_mother_name: '', owner_phone: '', owner_email: '', owner_address: '',
     ssm_name: '', reg_no: '', notes: '',
   })
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  // 重复检查：IC 满 12 位就查现有 Owner，已存在就显示他名下的公司
+  useEffect(() => {
+    const d = (form.owner_ic || '').replace(/\D/g, '')
+    if (selectedOwner || d.length !== 12) { setDup(null); return }
+    let alive = true
+    ;(async () => {
+      const { data: o } = await supabase.from('owners').select('id, name, ic, phone, email, address, mother_name').eq('ic', d).maybeSingle()
+      if (!alive) return
+      if (!o) { setDup(null); return }
+      const { data: ss } = await supabase.from('ssm').select('id, ssm_name').eq('owner_id', o.id)
+      if (alive) setDup({ owner: o, companies: (ss || []).map(x => x.ssm_name).filter(Boolean) })
+    })()
+    return () => { alive = false }
+  }, [form.owner_ic, selectedOwner])
+
+  const onExtract = (r) => {
+    setScanned(true); setConfirmed(false)
+    setForm(p => ({ ...p, owner_name: r.name || p.owner_name, owner_ic: r.ic || p.owner_ic, owner_address: r.address || p.owner_address }))
+  }
 
   const filteredOwners = owners.filter(o => {
     const q = ownerSearch.toLowerCase()
@@ -204,8 +230,13 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
       // Create owner if new
       if (!selectedOwner) {
         if (!form.owner_name || !form.owner_ic) { setError('请填写 Owner 姓名和 IC'); setLoading(false); return }
+        const icDigits = form.owner_ic.replace(/\D/g, '')
+        const v = validIC(icDigits)
+        if (!v.ok) { setError('IC 号码有问题：' + v.msg); setLoading(false); return }
+        if (dup) { setError('这个 IC 已经有 Owner 了（' + dup.owner.name + '），请在第 2 步点「使用现有 Owner」，不能重复建立'); setLoading(false); return }
+        if (scanned && !confirmed) { setError('IC 是自动识别的，请先核对资料并勾选「我已核对」'); setLoading(false); return }
         const { data: o, error: oErr } = await supabase.from('owners').insert({
-          name: form.owner_name, ic: form.owner_ic, mother_name: form.owner_mother_name,
+          name: form.owner_name, ic: form.owner_ic.replace(/\D/g, ''), mother_name: form.owner_mother_name,
           phone: form.owner_phone, email: form.owner_email, address: form.owner_address,
           agent_id: form.agent_id, created_by: currentUser.id, status: 'active',
         }).select().single()
@@ -237,12 +268,8 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
       if (icFile) {
         if (ssmId) {
           try {
-            const ext = icFile.name.split('.').pop()
-            const path = `${ssmId}/${Date.now()}_IC_Owner.${ext}`
-            const { error: upErr } = await supabase.storage.from('ssm-files').upload(path, icFile)
-            if (upErr) throw upErr
-            const { data: { publicUrl } } = supabase.storage.from('ssm-files').getPublicUrl(path)
-            await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: 'IC (Owner)', file_name: icFile.name, file_url: publicUrl, uploaded_by: currentUser.id })
+            const path = await uploadIcFile(icFile, ownerId)
+            await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: 'IC (Owner)', file_name: icFile.name, bucket: 'owner-ic', storage_path: path, file_url: null, uploaded_by: currentUser.id })
             toast('案件已建立，IC 已上传')
           } catch (upErr) {
             toast('案件已建立，但 IC 上传失败：' + upErr.message, 'error')
@@ -322,13 +349,20 @@ function NewCaseModal({ agents, owners, currentUser, onClose, onSave, toast }) {
                 <Field label="地址"><Inp value={form.owner_address} onChange={v => set('owner_address', v)} /></Field>
               </div>
             )}
-            <div className="pt-2 border-t border-slate-100">
-              <label className="block text-xs font-medium text-slate-600 mb-1">上传 Owner IC（可选）</label>
-              <input type="file" accept="image/*,.pdf" onChange={e => setIcFile(e.target.files[0] || null)}
-                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:text-xs" />
-              {icFile && <p className="text-xs text-slate-400 mt-1">已选择：{icFile.name}</p>}
-              <p className="text-[11px] text-amber-600 mt-1">💡 IC 要等这个案件有 SSM 资料才能真正上传，如果第 3 步没有填 SSM，请之后到案件的「文件」Tab 补传。</p>
-            </div>
+            <IcScanner file={icFile} onFile={setIcFile} onExtract={onExtract} />
+            {dup && !selectedOwner && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-sm">
+                <p className="font-bold text-amber-800">⚠️ 这个 Owner 已经注册过：{dup.owner.name}</p>
+                <p className="text-xs text-amber-700 mt-1">名下公司：{dup.companies.length ? dup.companies.join('、') : '（暂无）'}</p>
+                <button onClick={() => { setSelectedOwner(dup.owner); setDup(null) }} className="mt-2 px-3 py-1.5 text-xs rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold">使用现有 Owner 资料</button>
+              </div>
+            )}
+            {scanned && !selectedOwner && (
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
+                我已对照 IC 照片核对上面的姓名、IC、地址，资料无误
+              </label>
+            )}
           </div>
         )}
 

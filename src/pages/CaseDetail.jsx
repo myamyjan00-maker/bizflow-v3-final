@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, PAYMENT_METHODS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
 import { CaseBadge, BankBadge, Modal, Field, Inp, Sel, InfoRow, Secret } from '../components/UI'
 import { generateBankReport, printBankReportPDF } from '../lib/reportGenerator'
+import { getFileUrl, uploadIcFile } from '../lib/fileUrl'
 import PayerSelect from '../components/PayerSelect'
 
 const TABS = [
@@ -1558,21 +1559,37 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
     if (file.size > 10 * 1024 * 1024) { toast('文件不能超过10MB', 'error'); return }
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `${ssmId}/${Date.now()}_${cat.replace(/\s/g, '_')}.${ext}`
-      const { error: upErr } = await supabase.storage.from('ssm-files').upload(path, file)
-      if (upErr) throw upErr
-      const { data: { publicUrl } } = supabase.storage.from('ssm-files').getPublicUrl(path)
-      await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: cat, file_name: file.name, file_url: publicUrl, uploaded_by: currentUser.id })
+      if (cat === 'IC (Owner)') {
+        // IC 存进私有桶，只有登录后才看得到
+        const path = await uploadIcFile(file, ownerId)
+        await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: cat, file_name: file.name, bucket: 'owner-ic', storage_path: path, file_url: null, uploaded_by: currentUser.id })
+      } else {
+        const ext = file.name.split('.').pop()
+        const path = `${ssmId}/${Date.now()}_${cat.replace(/\s/g, '_')}.${ext}`
+        const { error: upErr } = await supabase.storage.from('ssm-files').upload(path, file)
+        if (upErr) throw upErr
+        const { data: { publicUrl } } = supabase.storage.from('ssm-files').getPublicUrl(path)
+        await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: cat, file_name: file.name, file_url: publicUrl, uploaded_by: currentUser.id })
+      }
       toast('上传成功'); onReload()
     } catch (err) { toast('上传失败: ' + err.message, 'error') }
     setUploading(false); e.target.value = ''
   }
 
+  const openPreview = async (f) => {
+    try { setPreview({ ...f, url: await getFileUrl(f) }) } catch (e) { toast('无法打开文件：' + e.message, 'error') }
+  }
+  const downloadFile = async (f) => {
+    try {
+      const url = await getFileUrl(f)
+      const a = document.createElement('a'); a.href = url; a.download = f.file_name || 'file'; a.target = '_blank'; a.click()
+    } catch (e) { toast('无法下载：' + e.message, 'error') }
+  }
+
   const handleDelete = async (f) => {
     if (!window.confirm('确定删除？')) return
-    const path = f.file_url.split('/ssm-files/')[1]
-    await supabase.storage.from('ssm-files').remove([path])
+    if (f.bucket === 'owner-ic') await supabase.storage.from('owner-ic').remove([f.storage_path])
+    else await supabase.storage.from('ssm-files').remove([f.file_url.split('/ssm-files/')[1]])
     await supabase.from('files').delete().eq('id', f.id)
     toast('已删除', 'error'); onReload()
   }
@@ -1589,8 +1606,8 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
           <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
             <button onClick={() => setPreview(null)} className="absolute -top-10 right-0 text-white text-2xl font-bold">✕</button>
             {preview.file_name?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-              ? <img src={preview.file_url} alt={preview.file_name} className="w-full rounded-xl" />
-              : <iframe src={preview.file_url} title={preview.file_name} className="w-full h-96 rounded-xl bg-white" />}
+              ? <img src={preview.url} alt={preview.file_name} className="w-full rounded-xl" />
+              : <iframe src={preview.url} title={preview.file_name} className="w-full h-96 rounded-xl bg-white" />}
             <p className="text-white text-xs text-center mt-2">{preview.file_name}</p>
           </div>
         </div>
@@ -1622,8 +1639,8 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
                       <p className="text-[10px] text-slate-400">{new Date(f.created_at).toLocaleDateString('en-MY')}</p>
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
-                      <button onClick={() => setPreview(f)} className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">预览</button>
-                      <a href={f.file_url} download={f.file_name} className="px-2 py-1 text-xs rounded-lg bg-green-50 text-green-700 hover:bg-green-100">下载</a>
+                      <button onClick={() => openPreview(f)} className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">预览</button>
+                      <button onClick={() => downloadFile(f)} className="px-2 py-1 text-xs rounded-lg bg-green-50 text-green-700 hover:bg-green-100">下载</button>
                       {currentUser.role !== 'viewer' && <button onClick={() => handleDelete(f)} className="px-2 py-1 text-xs rounded-lg bg-red-50 text-red-500 hover:bg-red-100">删</button>}
                     </div>
                   </div>
