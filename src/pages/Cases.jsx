@@ -126,16 +126,16 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        <div className="overflow-auto max-h-[75vh]">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
               <tr>
                 {['案件编号', '公司名称', 'Owner', 'IC', 'Agent', '当前阶段', '创建日期', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="[&>tr>td]:border-b [&>tr>td]:border-slate-100 dark:[&>tr>td]:border-slate-800">
               {paged.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   onClick={() => onNavigate('case', c.id)}>

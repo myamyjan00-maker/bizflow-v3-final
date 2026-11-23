@@ -226,12 +226,12 @@ export default function Expenses({ currentUser, toast }) {
 
       {/* 费用流水 */}
       {tab === 'ledger' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800">
-              <tr>{['日期', '公司 / Owner', '类别', '银行', '金额', '垫付人', 'Claim', ''].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>)}</tr>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-auto max-h-[75vh]">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>{['日期', '公司 / Owner', '类别', '银行', '金额', '垫付人', 'Claim', ''].map(h => <th key={h} className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>)}</tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="[&>tr>td]:border-b [&>tr>td]:border-slate-100 dark:[&>tr>td]:border-slate-800">
               {filtered.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                   <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmt(r.date)}</td>
@@ -262,12 +262,12 @@ export default function Expenses({ currentUser, toast }) {
 
       {/* Claim 追踪 */}
       {tab === 'claims' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800">
-              <tr>{['公司 / 案件', '费用', '垫付人', '谁要还谁', 'Claim 金额', '已收回', '未收回', '状态', ''].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>)}</tr>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-auto max-h-[75vh]">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>{['公司 / 案件', '费用', '垫付人', '谁要还谁', 'Claim 金额', '已收回', '未收回', '状态', ''].map(h => <th key={h} className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-bold text-slate-500 whitespace-nowrap">{h}</th>)}</tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="[&>tr>td]:border-b [&>tr>td]:border-slate-100 dark:[&>tr>td]:border-slate-800">
               {claimRows.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                   <td className="px-3 py-2 max-w-[200px]">
