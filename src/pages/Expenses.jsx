@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmt, COST_CATEGORIES } from '../lib/constants'
 import { Modal, Field, Inp, Sel } from '../components/UI'
+import PayerSelect from '../components/PayerSelect'
 
 // 所有费用都在 case_costs 这一张表：案件页、费用页、Dashboard、报表读的是同一份数据
 const EXTRA_CATS = [
@@ -344,11 +345,7 @@ function ExpenseModal({ cost, cases, ssms, owners, agents, payers, currentUser, 
         <Field label="相关银行（银行费用才填）"><Sel value={f.bank_name} onChange={v => set('bank_name', v)} options={BANK_OPTIONS} /></Field>
         <Field label="金额 (RM) *"><Inp type="number" value={f.amount} onChange={v => set('amount', v)} /></Field>
         <Field label="付款日期"><Inp type="date" value={f.cost_date} onChange={v => set('cost_date', v)} /></Field>
-        <Field label="谁先垫付" span2>
-          <input list="payer-list" value={f.paid_by} onChange={e => set('paid_by', e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-          <datalist id="payer-list">{payerSuggest.map(p => <option key={p} value={p} />)}</datalist>
-        </Field>
+        <Field label="谁先垫付" span2><PayerSelect value={f.paid_by} onChange={v => set('paid_by', v)} /></Field>
         <Field label="Claim 类型" span2>
           <Sel value={f.claim_type} onChange={v => set('claim_type', v)} options={Object.entries(CLAIM_TYPES).map(([value, label]) => ({ value, label }))} />
         </Field>

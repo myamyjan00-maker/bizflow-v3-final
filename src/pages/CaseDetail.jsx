@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, PAYMENT_METHODS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
 import { CaseBadge, BankBadge, Modal, Field, Inp, Sel, InfoRow, Secret } from '../components/UI'
 import { generateBankReport, printBankReportPDF } from '../lib/reportGenerator'
+import PayerSelect from '../components/PayerSelect'
 
 const TABS = [
   { id: 'timeline', label: '⏱ 时间线' },
@@ -1512,11 +1513,7 @@ function CostFormModal({ caseId, currentUser, banks = [], cost = null, onClose, 
           <Sel value={bankName} onChange={setBankName} options={[...new Set([...banks.map(b => b.bank_name), 'RHB', 'Affin', 'Hong Leong', 'CIMB', 'BSN', 'Bank Muamalat', 'Maybank', 'AmBank', 'OCBC'])]} />
         </Field>
         <Field label="金额 (RM) *"><Inp type="number" value={amount} onChange={setAmount} /></Field>
-        <Field label="谁先垫付">
-          <input list="cost-payer-list" value={paidBy} onChange={e => setPaidBy(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-          <datalist id="cost-payer-list"><option value="我自己" /><option value="公司" /></datalist>
-        </Field>
+        <Field label="谁先垫付"><PayerSelect value={paidBy} onChange={setPaidBy} /></Field>
         <Field label="Claim 类型"><Sel value={claimType} onChange={setClaimType} options={CLAIM_TYPE_OPTIONS} /></Field>
         {claimType !== 'none' && <Field label="Claim 金额（不填 = 全额）"><Inp type="number" value={claimAmount} onChange={setClaimAmount} placeholder={String(amount || '')} /></Field>}
         <Field label="付款方式（不填 = 全部转账；要拆分才填）">
