@@ -24,6 +24,9 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
   const [depositReturns, setDepositReturns] = useState([])
   const [costs, setCosts] = useState([])
   const [payments, setPayments] = useState([])
+  const [comms, setComms] = useState([])
+  const [commPays, setCommPays] = useState([])
+  const [agentName, setAgentName] = useState('')
   const [showAddPayment, setShowAddPayment] = useState(null) // 'payment' | 'refund'
   const [showFeeModal, setShowFeeModal] = useState(false)
   const [files, setFiles] = useState([])
@@ -90,6 +93,12 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
     setCosts(co || []); setFiles(fileData); setAccounts(acc || [])
     const { data: pay } = await supabase.from('case_payments').select('*').eq('case_id', caseId).order('payment_date', { ascending: true }).order('created_at', { ascending: true })
     setPayments(pay || [])
+    if (currentUser.role !== 'agent') {
+      const { data: cm } = await supabase.from('commissions').select('*').eq('case_id', caseId).order('created_at')
+      setComms(cm || [])
+      if (cm?.length) { const { data: cp } = await supabase.from('commission_payments').select('*').in('commission_id', cm.map(x => x.id)).order('paid_date'); setCommPays(cp || []) } else setCommPays([])
+      if (c?.agent_id) { const { data: u } = await supabase.from('users').select('display_name').eq('id', c.agent_id).maybeSingle(); setAgentName(u?.display_name || '') }
+    }
     setLoading(false)
   }
 
@@ -539,6 +548,10 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                         ))}
                       </div>
                     </div>
+                  )}
+                  {currentUser.role !== 'agent' && (
+                    <BankCommissions bank={b} caseId={caseId} comms={comms.filter(x => x.bank_account_id === b.id)} pays={commPays}
+                      agentName={agentName} currentUser={currentUser} toast={toast} onChanged={loadAll} />
                   )}
                 </div>
               ))}
@@ -1116,6 +1129,16 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
     set('com_id', `COM-${datePart}-${seq}`)
   }
 
+  // 填了交接日期、COM ID 还是空的，就自动生成（保存时数据库也会再保证一次）
+  const autoComId = async (date) => {
+    const [y, m, d] = date.split('-')
+    let q = supabase.from('bank_accounts').select('com_id').like('com_id', `COM-${d}${m}${y.slice(2)}-%`)
+    if (initial?.id) q = q.neq('id', initial.id)
+    const { data } = await q
+    const max = Math.max(0, ...(data || []).map(r => parseInt((r.com_id || '').split('-').pop(), 10) || 0))
+    set('com_id', `COM-${d}${m}${y.slice(2)}-${String(max + 1).padStart(3, '0')}`)
+  }
+
   const handleSave = async () => {
     if (!form.bank_name) { toast('请选择银行', 'error'); return }
     if (!ssmId) {
@@ -1165,7 +1188,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
           </div>
         </div>
         <Field label="开户日期"><Inp type="date" value={form.open_date} onChange={v => set('open_date', v)} /></Field>
-        <Field label="交接日期"><Inp type="date" value={form.handover_date} onChange={v => set('handover_date', v)} /></Field>
+        <Field label="交接日期"><Inp type="date" value={form.handover_date} onChange={v => { set('handover_date', v); if (v && !form.com_id) autoComId(v) }} /></Field>
         <Field label="收费 (RM)"><Inp type="number" value={form.commission} onChange={v => set('commission', v)} /></Field>
         <Field label="OB 用户名"><Inp value={form.ob_user_id} onChange={v => set('ob_user_id', v)} /></Field>
         <Field label="OB 密码"><Inp value={form.ob_password} onChange={v => set('ob_password', v)} /></Field>
@@ -1651,5 +1674,137 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
         )
       })}
     </div>
+  )
+}
+
+
+// 银行户口里直接填佣金：交接日期填了就可以填；佣金金额手动填，可以记多笔（Agent / 我 / KLV…），可以分次付款
+function BankCommissions({ bank, caseId, comms, pays, agentName, currentUser, toast, onChanged }) {
+  const canEdit = ['super_admin', 'admin'].includes(currentUser.role)
+  const [modal, setModal] = useState(null)    // { item }
+  const [payFor, setPayFor] = useState(null)  // commission
+  const money = n => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const rows = comms.map(c => {
+    const paid = pays.filter(p => p.commission_id === c.id).reduce((s, p) => s + Number(p.amount || 0), 0)
+    return { ...c, paid, out: Math.max(0, Number(c.amount) - paid) }
+  })
+  const totalOut = rows.reduce((s, r) => s + r.out, 0)
+  const remove = async (r) => {
+    if (!window.confirm(`删除这笔佣金？${r.payee} RM ${money(r.amount)}（付款记录也会一起删除）`)) return
+    const { error } = await supabase.from('commissions').delete().eq('id', r.id)
+    if (error) { toast('删除失败：' + error.message, 'error'); return }
+    toast('已删除'); onChanged()
+  }
+  return (
+    <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-teal-50/40 dark:bg-slate-800/40">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wide">🤝 佣金 {rows.length > 0 && <span className="normal-case font-medium text-slate-500">· 还欠 RM {money(totalOut)}</span>}</p>
+        {canEdit && bank.handover_date && bank.com_id && (
+          <button onClick={() => setModal({ item: null })} className="px-2 py-1 text-xs rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium">＋ 填佣金</button>
+        )}
+      </div>
+      {!bank.handover_date && <p className="text-xs text-slate-400">填了交接日期后，这里就可以直接填佣金</p>}
+      {bank.handover_date && rows.length === 0 && <p className="text-xs text-slate-400">还没有佣金记录{bank.com_id ? ` · ${bank.com_id}` : ''}</p>}
+      {rows.map(r => (
+        <div key={r.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-teal-100 dark:border-slate-700 last:border-0 text-sm">
+          <div className="min-w-0">
+            <span className="font-bold text-slate-700 dark:text-slate-200">{r.payee}</span>
+            <span className="text-xs text-slate-400 ml-2">{r.note || ''}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs whitespace-nowrap">
+            <span>RM {money(r.amount)}</span>
+            <span className="text-emerald-600">已付 {money(r.paid)}</span>
+            <span className={r.out > 0.005 ? 'text-red-500 font-bold' : 'text-emerald-600'}>{r.out > 0.005 ? '欠 ' + money(r.out) : '✓ 已付清'}</span>
+            {canEdit && <button onClick={() => setPayFor(r)} className="px-2 py-0.5 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100">付款</button>}
+            {canEdit && <button onClick={() => setModal({ item: r })} className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">编辑</button>}
+            {canEdit && <button onClick={() => remove(r)} className="px-2 py-0.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100">删</button>}
+          </div>
+        </div>
+      ))}
+      {modal && <BankCommissionModal bank={bank} caseId={caseId} item={modal.item} defaultPayee={agentName} currentUser={currentUser} toast={toast}
+        onClose={() => setModal(null)} onSaved={() => { setModal(null); toast('佣金已保存'); onChanged() }} />}
+      {payFor && <BankCommissionPayModal row={payFor} payments={pays.filter(p => p.commission_id === payFor.id)} currentUser={currentUser} toast={toast}
+        onClose={() => setPayFor(null)} onChanged={onChanged} />}
+    </div>
+  )
+}
+
+function BankCommissionModal({ bank, caseId, item, defaultPayee, currentUser, toast, onClose, onSaved }) {
+  const [f, setF] = useState({ payee: item?.payee || defaultPayee || 'KLV', amount: item?.amount ?? '', commission_date: item?.commission_date || new Date().toISOString().slice(0, 10), note: item?.note || '' })
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }))
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    if (!f.payee) { toast('请选收佣金的人', 'error'); return }
+    if (!(Number(f.amount) > 0)) { toast('请填佣金金额', 'error'); return }
+    setBusy(true)
+    const payload = { case_id: caseId, bank_account_id: bank.id, payee: f.payee, amount: Number(f.amount), commission_date: f.commission_date || null, note: f.note || null }
+    const { error } = item ? await supabase.from('commissions').update(payload).eq('id', item.id) : await supabase.from('commissions').insert({ ...payload, created_by: currentUser.id })
+    setBusy(false)
+    if (error) { toast('保存失败：' + error.message, 'error'); return }
+    onSaved()
+  }
+  return (
+    <Modal title={`${item ? '编辑' : '填'}佣金 · ${bank.com_id || bank.bank_name}`} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="谁收这笔佣金 *" span2><PayerSelect value={f.payee} onChange={v => set('payee', v)} /></Field>
+        <Field label="佣金金额 (RM) *"><Inp type="number" value={f.amount} onChange={v => set('amount', v)} /></Field>
+        <Field label="日期"><Inp type="date" value={f.commission_date} onChange={v => set('commission_date', v)} /></Field>
+        <Field label="备注" span2><Inp value={f.note} onChange={v => set('note', v)} placeholder="（可选）" /></Field>
+      </div>
+      <div className="flex gap-2 justify-end pt-4 mt-4 border-t border-slate-200">
+        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">取消</button>
+        <button onClick={save} disabled={busy} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">{busy ? '保存中...' : '保存'}</button>
+      </div>
+    </Modal>
+  )
+}
+
+function BankCommissionPayModal({ row, payments, currentUser, toast, onClose, onChanged }) {
+  const money = n => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const [amount, setAmount] = useState(row.out > 0 ? String(row.out) : '')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [method, setMethod] = useState('transfer')
+  const [busy, setBusy] = useState(false)
+  const add = async () => {
+    const a = Number(amount)
+    if (!(a > 0)) { toast('请填金额', 'error'); return }
+    if (a > row.out + 0.005 && !window.confirm(`RM ${money(a)} 超过还欠的 RM ${money(row.out)}，确定吗？`)) return
+    setBusy(true)
+    const { error } = await supabase.from('commission_payments').insert({ commission_id: row.id, amount: a, paid_date: date || null, payment_method: method, created_by: currentUser.id })
+    setBusy(false)
+    if (error) { toast('保存失败：' + error.message, 'error'); return }
+    toast('已记录付款'); onChanged(); onClose()
+  }
+  const del = async (p) => {
+    if (!window.confirm(`删除这笔付款 RM ${money(p.amount)}？`)) return
+    const { error } = await supabase.from('commission_payments').delete().eq('id', p.id)
+    if (error) { toast('删除失败：' + error.message, 'error'); return }
+    toast('已删除'); onChanged(); onClose()
+  }
+  return (
+    <Modal title={`佣金付款 · ${row.payee}`} onClose={onClose}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2 text-center bg-slate-50 rounded-xl py-3 text-sm">
+          <div><p className="text-[11px] text-slate-400">佣金</p><p className="font-bold">RM {money(row.amount)}</p></div>
+          <div><p className="text-[11px] text-slate-400">已付</p><p className="font-bold text-emerald-600">RM {money(row.paid)}</p></div>
+          <div><p className="text-[11px] text-slate-400">还欠</p><p className="font-bold text-red-500">RM {money(row.out)}</p></div>
+        </div>
+        {payments.map(p => (
+          <div key={p.id} className="flex items-center justify-between text-xs border-b border-slate-100 py-1">
+            <span className="text-slate-500">{fmt(p.paid_date)}{p.payment_method ? ' · ' + (PAYMENT_METHODS[p.payment_method]?.label || p.payment_method) : ''}</span>
+            <span><b className="text-emerald-600">RM {money(p.amount)}</b> <button onClick={() => del(p)} className="text-red-400 ml-2">删</button></span>
+          </div>
+        ))}
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+          <Field label="这次付 (RM)"><Inp type="number" value={amount} onChange={setAmount} /></Field>
+          <Field label="日期"><Inp type="date" value={date} onChange={setDate} /></Field>
+          <Field label="付款方式" span2><Sel value={method} onChange={setMethod} options={Object.entries(PAYMENT_METHODS).map(([value, m]) => ({ value, label: `${m.icon} ${m.label}` }))} /></Field>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">关闭</button>
+          <button onClick={add} disabled={busy} className="px-5 py-2 rounded-xl text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">记录付款</button>
+        </div>
+      </div>
+    </Modal>
   )
 }

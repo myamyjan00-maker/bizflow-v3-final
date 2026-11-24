@@ -54,6 +54,28 @@ export default function IcMigration({ toast }) {
     setBusy(false)
   }
 
+  const withLegacy = done.filter(r => r.legacy_url)
+  const removeOld = async () => {
+    if (!window.confirm(`永久删除 ${withLegacy.length} 张旧的公开 IC 副本？\n（私有桶里的新文件会保留；删之前会逐张确认新文件能读取）`)) return
+    setBusy(true)
+    for (const r of withLegacy) {
+      try {
+        const { data, error } = await supabase.storage.from('owner-ic').createSignedUrl(r.storage_path, 60)
+        if (error) throw error
+        const blob = await (await fetch(data.signedUrl)).blob()
+        if (!blob.size) throw new Error('新文件读不到，不删除旧文件')
+        const oldPath = decodeURIComponent(r.legacy_url.split('/ssm-files/')[1] || '')
+        if (!oldPath.includes('_IC')) throw new Error('路径不像 IC 文件，已跳过')
+        const { error: dErr } = await supabase.storage.from('ssm-files').remove([oldPath])
+        if (dErr) throw dErr
+        const { error: uErr } = await supabase.from('files').update({ legacy_url: null }).eq('id', r.id)
+        if (uErr) throw uErr
+        set(r.id, '🗑️ 旧副本已删除')
+      } catch (e) { set(r.id, '❌ ' + (e.message || e)) }
+    }
+    setBusy(false); load()
+  }
+
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
@@ -67,6 +89,7 @@ export default function IcMigration({ toast }) {
       <div className="flex gap-2">
         <button onClick={migrate} disabled={busy || !pending.length} className="px-4 py-2 text-sm rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold disabled:opacity-40">1. 开始复制</button>
         <button onClick={verify} disabled={busy || !done.length} className="px-4 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold disabled:opacity-40">2. 核对完整性</button>
+        <button onClick={removeOld} disabled={busy || !withLegacy.length} className="px-4 py-2 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40">3. 删除旧的公开副本</button>
         {busy && <span className="text-xs text-slate-500 self-center">处理中…请不要关闭页面</span>}
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
