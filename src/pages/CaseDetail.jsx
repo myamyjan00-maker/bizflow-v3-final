@@ -491,10 +491,14 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                       {b.com_id && <span className="text-xs font-mono bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{b.com_id}</span>}
                       {currentUser.role !== 'viewer' && currentUser.role !== 'agent' && (
                         <>
-                          <button onClick={() => generateBankReport({ companyName: ssm?.ssm_name || owner?.name, caseNo: cas.case_no, ssm, owner, bank: b })}
-                            className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="下载 Word 交接报告">📄 Word</button>
-                          <button onClick={() => printBankReportPDF({ companyName: ssm?.ssm_name || owner?.name, caseNo: cas.case_no, ssm, owner, bank: b })}
-                            className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="打印 / 另存为 PDF">🖨️ PDF</button>
+                          {[['zh', '中'], ['en', 'EN']].map(([lg, lb]) => (
+                            <span key={lg} className="inline-flex items-center gap-1">
+                              <button onClick={() => generateBankReport({ companyName: ssm?.ssm_name || owner?.name, caseNo: cas.case_no, ssm, owner, bank: b, lang: lg })}
+                                className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title={lg === 'en' ? 'Download Word (English)' : '下载 Word（中文）'}>📄 Word {lb}</button>
+                              <button onClick={() => printBankReportPDF({ companyName: ssm?.ssm_name || owner?.name, caseNo: cas.case_no, ssm, owner, bank: b, lang: lg })}
+                                className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title={lg === 'en' ? 'Print / Save as PDF (English)' : '打印 / 另存为 PDF（中文）'}>🖨️ PDF {lb}</button>
+                            </span>
+                          ))}
                         </>
                       )}
                       {currentUser.role !== 'viewer' && (
