@@ -3,36 +3,43 @@ import { supabase } from '../lib/supabase'
 
 // 一次性工具：把旧的 IC 照片从公开桶(ssm-files)复制到私有桶(owner-ic)。
 // 只复制 category = 'IC (Owner)' 的文件；旧文件不会被删除。
+const GROUPS = [
+  { cat: 'IC (Owner)', label: 'IC 照片', target: 'owner-ic', folder: r => r.owner_id, mark: '_IC' },
+  { cat: 'ATM Card Photo', label: 'ATM 卡照片', target: 'private-files', folder: r => r.ssm_id, mark: '_ATM' },
+]
+
 export default function IcMigration({ toast }) {
+  const [gi, setGi] = useState(1)
+  const G = GROUPS[gi]
   const [rows, setRows] = useState([])
   const [log, setLog] = useState({})
   const [busy, setBusy] = useState(false)
 
   const load = async () => {
-    const { data } = await supabase.from('files').select('id, owner_id, file_name, file_url, bucket, storage_path, legacy_url').eq('category', 'IC (Owner)').order('created_at')
+    const { data } = await supabase.from('files').select('id, owner_id, ssm_id, file_name, file_url, bucket, storage_path, legacy_url').eq('category', G.cat).order('created_at')
     setRows(data || [])
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { setLog({}); load() }, [gi])
   const set = (id, v) => setLog(p => ({ ...p, [id]: v }))
-  const pending = rows.filter(r => r.bucket !== 'owner-ic')
-  const done = rows.filter(r => r.bucket === 'owner-ic')
+  const pending = rows.filter(r => r.bucket === 'ssm-files' || !r.bucket)
+  const done = rows.filter(r => r.bucket === G.target)
 
   const migrate = async () => {
-    if (!window.confirm(`复制 ${pending.length} 张 IC 照片到私有桶？旧文件不会被删除。`)) return
+    if (!window.confirm(`复制 ${pending.length} 张${G.label}到私有桶？旧文件不会被删除。`)) return
     setBusy(true)
     for (const r of pending) {
       try {
         const oldPath = decodeURIComponent((r.file_url || '').split('/ssm-files/')[1] || '')
         if (!oldPath) throw new Error('找不到旧路径')
-        const newPath = `${r.owner_id}/${oldPath.split('/').pop()}`
-        let { error } = await supabase.storage.from('ssm-files').copy(oldPath, newPath, { destinationBucket: 'owner-ic' })
+        const newPath = `${G.folder(r)}/${oldPath.split('/').pop()}`
+        let { error } = await supabase.storage.from('ssm-files').copy(oldPath, newPath, { destinationBucket: G.target })
         if (error && !/exists|duplicate/i.test(error.message)) {
           // 备用办法：下载再上传
           const blob = await (await fetch(r.file_url)).blob()
-          const up = await supabase.storage.from('owner-ic').upload(newPath, blob, { contentType: blob.type, upsert: false })
+          const up = await supabase.storage.from(G.target).upload(newPath, blob, { contentType: blob.type, upsert: false })
           if (up.error && !/exists|duplicate/i.test(up.error.message)) throw up.error
         }
-        const { error: uErr } = await supabase.from('files').update({ bucket: 'owner-ic', storage_path: newPath, legacy_url: r.file_url, file_url: null }).eq('id', r.id)
+        const { error: uErr } = await supabase.from('files').update({ bucket: G.target, storage_path: newPath, legacy_url: r.file_url, file_url: null }).eq('id', r.id)
         if (uErr) throw uErr
         set(r.id, '✅ 已复制')
       } catch (e) { set(r.id, '❌ ' + (e.message || e)) }
@@ -44,7 +51,7 @@ export default function IcMigration({ toast }) {
     setBusy(true)
     for (const r of done) {
       try {
-        const { data, error } = await supabase.storage.from('owner-ic').createSignedUrl(r.storage_path, 120)
+        const { data, error } = await supabase.storage.from(G.target).createSignedUrl(r.storage_path, 120)
         if (error) throw error
         const a = await (await fetch(data.signedUrl)).blob()
         const b = await (await fetch(r.legacy_url)).blob()
@@ -56,16 +63,16 @@ export default function IcMigration({ toast }) {
 
   const withLegacy = done.filter(r => r.legacy_url)
   const removeOld = async () => {
-    if (!window.confirm(`永久删除 ${withLegacy.length} 张旧的公开 IC 副本？\n（私有桶里的新文件会保留；删之前会逐张确认新文件能读取）`)) return
+    if (!window.confirm(`永久删除 ${withLegacy.length} 张旧的公开${G.label}副本？\n（私有桶里的新文件会保留；删之前会逐张确认新文件能读取）`)) return
     setBusy(true)
     for (const r of withLegacy) {
       try {
-        const { data, error } = await supabase.storage.from('owner-ic').createSignedUrl(r.storage_path, 60)
+        const { data, error } = await supabase.storage.from(G.target).createSignedUrl(r.storage_path, 60)
         if (error) throw error
         const blob = await (await fetch(data.signedUrl)).blob()
         if (!blob.size) throw new Error('新文件读不到，不删除旧文件')
         const oldPath = decodeURIComponent(r.legacy_url.split('/ssm-files/')[1] || '')
-        if (!oldPath.includes('_IC')) throw new Error('路径不像 IC 文件，已跳过')
+        if (!oldPath.includes(G.mark)) throw new Error('路径不像 IC 文件，已跳过')
         const { error: dErr } = await supabase.storage.from('ssm-files').remove([oldPath])
         if (dErr) throw dErr
         const { error: uErr } = await supabase.from('files').update({ legacy_url: null }).eq('id', r.id)
@@ -90,8 +97,9 @@ export default function IcMigration({ toast }) {
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
-        <h1 className="text-lg font-black text-slate-800">🔒 IC 照片迁移到私有存储</h1>
-        <p className="text-xs text-slate-500">只处理「IC (Owner)」类别 · 先复制、后核对 · 旧文件不删除</p>
+        <h1 className="text-lg font-black text-slate-800">🔒 敏感文件迁移到私有存储</h1>
+        <div className="flex gap-2 mt-2">{GROUPS.map((g, i) => <button key={g.cat} onClick={() => setGi(i)} className={`px-3 py-1.5 text-xs rounded-lg font-medium ${gi === i ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{g.label}</button>)}</div>
+        <p className="text-xs text-slate-500">只处理当前选中的类别 · 先复制、后核对 · 旧文件不删除</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border bg-amber-50 border-amber-100 p-4"><p className="text-xs text-amber-700">还没迁移</p><p className="text-2xl font-black text-amber-700">{pending.length}</p></div>
@@ -101,14 +109,14 @@ export default function IcMigration({ toast }) {
         <button onClick={migrate} disabled={busy || !pending.length} className="px-4 py-2 text-sm rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold disabled:opacity-40">1. 开始复制</button>
         <button onClick={verify} disabled={busy || !done.length} className="px-4 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold disabled:opacity-40">2. 核对完整性</button>
         <button onClick={removeOld} disabled={busy || !withLegacy.length} className="px-4 py-2 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40">3. 删除旧的公开副本</button>
-        <button onClick={removeOrphans} disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-40">4. 删除 2 张重复副本</button>
+        {gi === 0 && <button onClick={removeOrphans} disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-40">4. 删除 2 张重复副本</button>}
         {busy && <span className="text-xs text-slate-500 self-center">处理中…请不要关闭页面</span>}
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
         {rows.map(r => (
           <div key={r.id} className="flex justify-between gap-3 px-4 py-2 text-xs">
             <span className="truncate text-slate-600">{r.file_name}</span>
-            <span className="whitespace-nowrap">{log[r.id] || (r.bucket === 'owner-ic' ? '已在私有桶' : '待迁移')}</span>
+            <span className="whitespace-nowrap">{log[r.id] || (r.bucket === G.target ? '已在私有桶' : '待迁移')}</span>
           </div>
         ))}
       </div>

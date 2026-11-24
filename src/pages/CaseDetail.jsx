@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { CASE_STATUSES, CASE_STATUS_ICONS, BANKS, BANK_STATUSES, COST_CATEGORIES, FILE_CATS, TERMINATION_TYPES, DEPOSIT_RECOVERY_STATUSES, DEPOSIT_RECOVERY_TARGETS, PAYMENT_METHODS, fmt, fmtDateTime, fmtMoney } from '../lib/constants'
 import { CaseBadge, BankBadge, Modal, Field, Inp, Sel, InfoRow, Secret } from '../components/UI'
 import { generateBankReport, printBankReportPDF } from '../lib/reportGenerator'
-import { getFileUrl, uploadIcFile } from '../lib/fileUrl'
+import { getFileUrl, uploadIcFile, uploadPrivateFile } from '../lib/fileUrl'
 import PayerSelect from '../components/PayerSelect'
 
 const TABS = [
@@ -1586,6 +1586,9 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
         // IC 存进私有桶，只有登录后才看得到
         const path = await uploadIcFile(file, ownerId)
         await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: cat, file_name: file.name, bucket: 'owner-ic', storage_path: path, file_url: null, uploaded_by: currentUser.id })
+      } else if (cat === 'ATM Card Photo') {
+        const path = await uploadPrivateFile(file, ssmId, 'ATM')
+        await supabase.from('files').insert({ ssm_id: ssmId, owner_id: ownerId, category: cat, file_name: file.name, bucket: 'private-files', storage_path: path, file_url: null, uploaded_by: currentUser.id })
       } else {
         const ext = file.name.split('.').pop()
         const path = `${ssmId}/${Date.now()}_${cat.replace(/\s/g, '_')}.${ext}`
@@ -1611,7 +1614,7 @@ function DocsTab({ files, ssmId, ownerId, currentUser, toast, onReload }) {
 
   const handleDelete = async (f) => {
     if (!window.confirm('确定删除？')) return
-    if (f.bucket === 'owner-ic') await supabase.storage.from('owner-ic').remove([f.storage_path])
+    if (f.bucket && f.bucket !== 'ssm-files') await supabase.storage.from(f.bucket).remove([f.storage_path])
     else await supabase.storage.from('ssm-files').remove([f.file_url.split('/ssm-files/')[1]])
     await supabase.from('files').delete().eq('id', f.id)
     toast('已删除', 'error'); onReload()
