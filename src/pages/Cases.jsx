@@ -11,7 +11,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
   const [owners, setOwners] = useState([])
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialFilter?.search || '')
   const [statusFilter, setStatusFilter] = useState(initialFilter?.status || '全部')
   const [agentFilter, setAgentFilter] = useState('全部')
   const [page, setPage] = useState(1)
@@ -20,7 +20,7 @@ export default function Cases({ currentUser, onNavigate, initialFilter, toast })
   const PAGE_SIZE = 25
 
   useEffect(() => { loadData() }, [])
-  useEffect(() => { if (initialFilter?.status) setStatusFilter(initialFilter.status) }, [initialFilter])
+  useEffect(() => { if (initialFilter?.status) setStatusFilter(initialFilter.status); if (initialFilter?.search !== undefined) setSearch(initialFilter.search) }, [initialFilter])
 
   const loadData = async () => {
     setLoading(true)

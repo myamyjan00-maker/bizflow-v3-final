@@ -12,7 +12,7 @@ export function LogoIcon({ size = 40 }) {
   )
 }
 
-export function LogoFull({ dark = false }) {
+export function LogoFull({ dark = false, onNavy = false }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <LogoIcon size={36} />
@@ -21,10 +21,10 @@ export function LogoFull({ dark = false }) {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontWeight: 700,
           fontSize: '20px',
-          color: dark ? '#5DCAA5' : '#085041',
+          color: onNavy ? '#ffffff' : dark ? '#5DCAA5' : '#085041',
           letterSpacing: '-0.3px',
         }}>
-          Biz<span style={{ color: dark ? '#9FE1CB' : '#0F6E56' }}>Flow</span>
+          Biz<span style={{ color: onNavy ? '#5DCAA5' : dark ? '#9FE1CB' : '#0F6E56' }}>Flow</span>
         </span>
         <span style={{
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
