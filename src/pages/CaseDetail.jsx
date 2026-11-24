@@ -511,6 +511,7 @@ export default function CaseDetail({ caseId, currentUser, onBack, toast }) {
                     <div>
                       <InfoRow label="账号" value={b.account_no} secret />
                       <InfoRow label="分行" value={b.branch} />
+                      <InfoRow label="银行 Email" value={b.bank_email} />
                       <InfoRow label="开户日期" value={b.open_date} />
                       <InfoRow label="交接日期" value={b.handover_date} />
                       <InfoRow label="收费" value={b.commission ? fmtMoney(b.commission) : null} />
@@ -1107,7 +1108,7 @@ function EditProfileModal({ cas, onClose, onSave, toast }) {
 }
 
 function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, toast }) {
-  const empty = { bank_name: 'RHB', account_no: '', com_id: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', access_number: '', temp_password: '', organisation_id: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
+  const empty = { bank_name: 'RHB', account_no: '', bank_email: '', com_id: '', open_date: '', handover_date: '', branch: '', status: 'New', ob_user_id: '', ob_password: '', corp_id: '', secure_plus_serial: '', login_id: '', access_id: '', access_number: '', temp_password: '', organisation_id: '', atm_card_no: '', atm_pin: '', tac_phone: '', commission: 0, fee_deposit: 0, fee_bank_charge: 0, fee_card: 0, fee_simcard: 0, fee_forex: 0, fee_others: 0, security_qa: [{ q: '', a: '' }] }
   const [form, setForm] = useState(initial ? { ...initial, security_qa: initial.security_qa?.filter(q => q.q) || [{ q: '', a: '' }] } : empty)
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -1181,6 +1182,7 @@ function BankFormModal({ initial, ssmId, ownerId, currentUser, onClose, onSave, 
         <Field label="状态"><Sel value={form.status} onChange={v => set('status', v)} options={BANK_STATUSES.filter(s => s !== 'Blacklist' || ['super_admin', 'admin'].includes(currentUser.role))} /></Field>
         <Field label="账号"><Inp value={form.account_no} onChange={v => set('account_no', v)} /></Field>
         <Field label="分行"><Inp value={form.branch} onChange={v => set('branch', v)} /></Field>
+        <Field label="银行 Email"><Inp type="email" value={form.bank_email} onChange={v => set('bank_email', v)} /></Field>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">COM ID</label>
           <div className="flex gap-2">

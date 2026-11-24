@@ -15,7 +15,7 @@ const TXT = {
     warn: '⚠ 本文件含银行登入密码与 ATM 密码等敏感资讯，请妥善保管，交接完成后建议删除。',
     company: '公司资料 (SSM)', companyName: '公司名称', regNo: '注册号', regDate: '注册日期', address: '公司地址',
     owner: 'Owner 资料', name: '姓名', mother: '母亲姓名', phone: '电话', ownerAddr: '地址',
-    accountNo: '账号', branch: '分行',
+    accountNo: '账号', bankEmail: '银行 Email', branch: '分行',
     ob: '网银登入资料', obUser: '网银 User ID', obPwd: '网银密码',
     atm: 'ATM 卡资料', atmNo: 'ATM 卡号', atmPin: 'ATM 密码', tac: 'TAC 手机号',
     qa: '安全问题 (Security Questions)', q: '问题', ans: '答案', popup: '弹出视窗被浏览器挡住了，请允许弹出视窗后再试一次',
@@ -25,7 +25,7 @@ const TXT = {
     warn: '⚠ This document contains online banking and ATM credentials. Keep it confidential and delete it after handover.',
     company: 'Company Details (SSM)', companyName: 'Company Name', regNo: 'Registration No.', regDate: 'Registration Date', address: 'Company Address',
     owner: 'Owner Details', name: 'Full Name', mother: "Mother's Name", phone: 'Phone', ownerAddr: 'Address',
-    accountNo: 'Account No.', branch: 'Branch',
+    accountNo: 'Account No.', bankEmail: 'Bank Email', branch: 'Branch',
     ob: 'Online Banking Login', obUser: 'Online Banking User ID', obPwd: 'Online Banking Password',
     atm: 'ATM Card Details', atmNo: 'ATM Card No.', atmPin: 'ATM PIN', tac: 'TAC Phone No.',
     qa: 'Security Questions', q: 'Question', ans: 'Answer', popup: 'Pop-up blocked by the browser. Please allow pop-ups and try again.',
@@ -141,7 +141,7 @@ export async function generateBankReport({ companyName, caseNo, ssm, owner, bank
         ]),
 
         ...section(`${bank.bank_name} ${t.bankInfo}`, [
-          row(t.accountNo, bank.account_no), row(t.branch, bank.branch), row('COM ID', bank.com_id),
+          row(t.accountNo, bank.account_no), row(t.branch, bank.branch), row(t.bankEmail, bank.bank_email), row('COM ID', bank.com_id),
         ]),
         ...section(t.ob, [
           row(t.obUser, bank.ob_user_id), row(t.obPwd, bank.ob_password), row('Corp ID', bank.corp_id),
@@ -218,7 +218,7 @@ export function printBankReportPDF({ companyName, caseNo, ssm, owner, bank, lang
     rowHtml(t.phone, owner?.phone), rowHtml('Email', owner?.email), rowHtml(t.ownerAddr, owner?.address),
   ])}
   ${sectionHtml(`${bank.bank_name} ${t.bankInfo}`, [
-    rowHtml(t.accountNo, bank.account_no), rowHtml(t.branch, bank.branch), rowHtml('COM ID', bank.com_id),
+    rowHtml(t.accountNo, bank.account_no), rowHtml(t.branch, bank.branch), rowHtml(t.bankEmail, bank.bank_email), rowHtml('COM ID', bank.com_id),
   ])}
   ${sectionHtml(t.ob, [
     rowHtml(t.obUser, bank.ob_user_id), rowHtml(t.obPwd, bank.ob_password), rowHtml('Corp ID', bank.corp_id),
