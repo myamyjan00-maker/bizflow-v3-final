@@ -76,6 +76,17 @@ export default function IcMigration({ toast }) {
     setBusy(false); load()
   }
 
+  // 2 张没有记录指向的重复 IC 副本（私有桶里已有同样大小的正本），只删这两个固定路径
+  const ORPHANS = ['7f4a4604-7370-4a83-a83e-44c1cde17baf/1781246073689_IC_(Owner).jpeg', '7f4a4604-7370-4a83-a83e-44c1cde17baf/1781246077372_IC_(Owner).jpeg']
+  const removeOrphans = async () => {
+    if (!window.confirm('删除 2 张没有记录的重复 IC 副本？（私有桶里已有同样的正本）')) return
+    setBusy(true)
+    const { data, error } = await supabase.storage.from('ssm-files').remove(ORPHANS)
+    setBusy(false)
+    if (error) { toast('删除失败：' + error.message, 'error'); return }
+    toast(`已删除 ${data?.length ?? 0} 张重复副本`)
+  }
+
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
@@ -86,10 +97,11 @@ export default function IcMigration({ toast }) {
         <div className="rounded-2xl border bg-amber-50 border-amber-100 p-4"><p className="text-xs text-amber-700">还没迁移</p><p className="text-2xl font-black text-amber-700">{pending.length}</p></div>
         <div className="rounded-2xl border bg-emerald-50 border-emerald-100 p-4"><p className="text-xs text-emerald-700">已在私有桶</p><p className="text-2xl font-black text-emerald-700">{done.length}</p></div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button onClick={migrate} disabled={busy || !pending.length} className="px-4 py-2 text-sm rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold disabled:opacity-40">1. 开始复制</button>
         <button onClick={verify} disabled={busy || !done.length} className="px-4 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold disabled:opacity-40">2. 核对完整性</button>
         <button onClick={removeOld} disabled={busy || !withLegacy.length} className="px-4 py-2 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40">3. 删除旧的公开副本</button>
+        <button onClick={removeOrphans} disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-40">4. 删除 2 张重复副本</button>
         {busy && <span className="text-xs text-slate-500 self-center">处理中…请不要关闭页面</span>}
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
